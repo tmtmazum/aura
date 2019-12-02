@@ -32,12 +32,12 @@ std::error_code start_game_session(ruleset const& rules, rules_engine& engine, d
   display.clear_board();
   while(!engine.is_game_over())
   {
-    auto const sesh_info = engine.get_session_info();
+    auto sesh_info = std::make_shared<session_info>(engine.get_session_info());
     auto redraw = true;
 
     std::error_code e{};
     do {
-      auto const action = display.display_session(sesh_info, redraw);
+      auto const action = display.display_session(std::move(sesh_info), redraw);
       e = engine.commit_action(action);
       redraw = false;
     } while(e);

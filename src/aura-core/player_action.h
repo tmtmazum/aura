@@ -9,7 +9,8 @@ enum class action_type : int
   end_turn,
   forfeit,
   primary_action, //!< attack or heal
-  deploy //!< place a card on the board
+  deploy, //!< place a card on the board
+  no_action, //!<
 };
 
 struct player_action

@@ -217,6 +217,11 @@ std::error_code local_rules_engine::commit_action(player_action const& action)
     player.hand.erase(it);
     return {};
   }
+
+  case action_type::no_action:
+  {
+    return {};
+  }
   }
   LEGAL_ASSERT(false, "Unrecognized action");
 }

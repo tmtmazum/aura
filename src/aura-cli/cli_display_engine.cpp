@@ -226,9 +226,11 @@ void print_board_pretty(session_info const& info)
   AURA_PRINT(L"\n");
 }
 
-player_action cli_display_engine::display_session(session_info const& info, bool redraw)
+player_action cli_display_engine::display_session(std::shared_ptr<session_info> info_in, bool redraw)
 {
   AURA_ENTER();
+
+  auto const& info = *info_in;
 
   if (redraw)
   {
@@ -263,7 +265,7 @@ player_action cli_display_engine::display_session(session_info const& info, bool
     }
     else if(cmd == L"redraw")
     {
-      return display_session(info, redraw);
+      return display_session(std::move(info_in), redraw);
     }
     else if(cmd == L"action" || cmd == L"a")
     {
