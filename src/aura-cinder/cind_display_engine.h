@@ -12,6 +12,8 @@
 #include <memory>
 #include <mutex>
 #include <thread>
+#include <optional>
+#include "display_constants.h"
 
 #include <aura-core/session_info.h>
 
@@ -63,20 +65,32 @@ public:
 inline std::error_code start_game_session(ruleset const& rules, rules_engine& engine, display_engine& display)
 {
   display.clear_board();
+  auto redraw = true;
   while(!engine.is_game_over())
   {
     auto sesh_info = std::make_shared<session_info>(engine.get_session_info());
-    auto redraw = true;
 
-    std::error_code e{};
-    do {
-      auto const action = display.display_session(std::move(sesh_info), redraw);
-      e = engine.commit_action(action);
-      redraw = false;
-    } while(e);
+    auto const action = display.display_session(std::move(sesh_info), redraw);
+    auto const e = engine.commit_action(action);
+    redraw = !e;
   }
 	return {};
 }
+
+enum class cind_action_type
+{
+  hovered_lane,
+  hovered_lane_card,
+  hovered_hand_card,
+  selected_hand_card,
+  selected_lane_card,
+};
+
+struct cind_action
+{
+  cind_action_type type;
+  int target;
+};
 
 class cind_display_engine
   : public display_engine
@@ -89,10 +103,7 @@ public:
   void setup() override {
     m_logic_thread = std::thread{[this]
     {
-      aura::ruleset rs;
-      aura::local_rules_engine re{rs};
-
-      start_game_session(rs, re, *this);
+      start_game_session(m_ruleset, m_rules_engine, *this);
     }};
   }
 
@@ -103,6 +114,9 @@ public:
       m_logic_thread.join();
     }
   }
+
+	//! Override to receive mouse-down events.
+	void mouseDown(ci::app::MouseEvent event) override;
 
   //! ci::app::App interface
   void draw() override;
@@ -155,14 +169,54 @@ public:
   player_action display_session(std::shared_ptr<session_info> info, bool redraw) override;
 
 private:
-  using layers_container = std::vector<std::vector<std::unique_ptr<drawable>>>;
-  layers_container m_layers;
+
+  void display_hand(
+    std::vector<card_info> const &hand,
+    ci::Rectf const &bounds);
+
+  void display_lanes(player_info const& player, ci::Rectf const& bounds, bool is_current, bool reverse_y = false);
+
+  void display_player_top(player_info const& player, bool is_current);
+
+  void display_player_bottom(player_info const& player, bool is_current);
+
+  enum class selection : int { passive, hovered, selected };
+
+  void display_hand_card(card_info const& card, ci::Rectf const& rect, selection sel);
+
+  void display_lane_card(card_info const& info, ci::Rectf const& bounds, selection s);
+
+  void display_lane_marker(int i, ci::Rectf const&);
+
+  void display_text(std::string const& text, ci::Rectf const&, ci::ColorAf const& );
+
+private:
+  display_constants m_constants;
+
+  aura::ruleset m_ruleset;
+
+  aura::local_rules_engine m_rules_engine{m_ruleset};
 
   std::shared_ptr<session_info> m_session_info;
 
   std::mutex m_mutex;
 
   std::thread m_logic_thread;
+
+  //std::optional<cind_action> m_ui_action;
+  std::optional<int> m_hovered;
+
+  std::optional<int> m_hovered_lane;
+
+  //! True if the hovered card is in hand
+  bool m_in_hand{false};
+
+  std::optional<int> m_selected;
+
+  //! If a card is selected, this vector stores all other cards that can be targetted
+  std::vector<int> m_can_be_targetted;
+
+  std::promise<player_action> m_action;
 };
 
 } // namespace aura

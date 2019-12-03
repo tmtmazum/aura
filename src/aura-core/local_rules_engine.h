@@ -14,7 +14,7 @@ public:
 
   session_info get_session_info() const { return m_session_info; }
 
-  std::vector<int> get_target_list(int uid) const { return {}; }
+  std::vector<int> get_target_list(int uid) const;
 
   //! Check if a player action is legal
 

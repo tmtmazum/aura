@@ -65,6 +65,11 @@ local_rules_engine::local_rules_engine(ruleset const& rs)
     return e; \
   }
 
+std::vector<int> local_rules_engine::get_target_list(int uid) const
+{
+  return {};
+}
+
 //! Commit a player action
 std::error_code local_rules_engine::commit_action(player_action const& action) 
 {

@@ -20,4 +20,9 @@ struct player_action
   int target2{};
 };
 
+inline player_action make_deploy_action(int uid, int lane_no)
+{
+  return player_action{action_type::deploy, uid, lane_no};
+}
+
 } // namespace aura
