@@ -16,8 +16,9 @@ struct card_preset
   std::vector<unit_traits> traits;
 };
 
+
 std::vector<card_preset> const presets = {
-  card_preset{L"Small Fortification", 0, 0, 1, {}},
+  card_preset{L"Small Fortification", 0, 0, 1, {}}, // DON'T MOVE THIS
   card_preset{L"Fortification", 1, 0, 2, {}},
   card_preset{L"Soldier", 1, 1, 1, {}},
   card_preset{L"Guardsman", 2, 1, 2, {}},

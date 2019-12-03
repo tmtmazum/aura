@@ -32,8 +32,12 @@ struct card_info
 };
 
 class deck;
-card_info generate_card(deck const& d);
+struct ruleset;
+card_info generate_card(ruleset const& r, deck const& d, int turn = 1);
 int generate_uid();
+
+struct card_preset;
+card_info to_card_info(card_preset const& p, int cid);
 
 struct player_info
 {

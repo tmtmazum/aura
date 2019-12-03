@@ -3,6 +3,7 @@
 #include "aura-core/player_action.h"
 #include "aura-core/build.h"
 #include "aura-core/unit_traits.h"
+#include "aura-core/card_preset.h"
 #include <algorithm>
 #include <optional>
 #include <functional>
@@ -28,7 +29,12 @@ local_rules_engine::local_rules_engine(ruleset const& rs)
     
     for (int i = 0; i < m_rules.challenger_starting_cards; ++i)
     {
-      player.hand.emplace_back(generate_card(rs.challenger_deck));  
+      player.hand.emplace_back(generate_card(rs, rs.challenger_deck));  
+    }
+
+    for (auto i = 0; i < rs.defender_starts_with_n_forts; ++i)
+    {
+      player.hand.emplace_back(to_card_info(presets[0], 0));
     }
     m_session_info.players.emplace_back(player);
   }
@@ -47,8 +53,14 @@ local_rules_engine::local_rules_engine(ruleset const& rs)
     
     for (int i = 0; i < m_rules.defender_starting_cards; ++i)
     {
-      player.hand.emplace_back(generate_card(rs.defender_deck));
+      player.hand.emplace_back(generate_card(rs, rs.defender_deck));
     }
+
+    for (auto i = 0; i < rs.defender_starts_with_n_forts; ++i)
+    {
+      player.hand.emplace_back(to_card_info(presets[0], 0));
+    }
+
     m_session_info.players.emplace_back(player);
   }
 }
@@ -89,9 +101,10 @@ std::error_code local_rules_engine::commit_action(player_action const& action)
         {
           card.resting = false;
         });
-        player.hand.emplace_back(generate_card(m_rules.challenger_deck));
       }
     }
+    m_session_info.players[m_session_info.current_player]
+      .hand.emplace_back(generate_card(m_rules, m_rules.challenger_deck, m_session_info.turn));
     m_session_info.current_player = !m_session_info.current_player;
     return {};
   }

@@ -30,18 +30,16 @@ std::error_code make_error_code(rules_error e) noexcept
 std::error_code start_game_session(ruleset const& rules, rules_engine& engine, display_engine& display)
 {
   display.clear_board();
+  auto redraw = true;
   while(!engine.is_game_over())
   {
     auto sesh_info = std::make_shared<session_info>(engine.get_session_info());
-    auto redraw = true;
 
-    std::error_code e{};
-    do {
-      auto const action = display.display_session(std::move(sesh_info), redraw);
-      e = engine.commit_action(action);
-      redraw = false;
-    } while(e);
+    auto const action = display.display_session(std::move(sesh_info), redraw);
+    auto const e = engine.commit_action(action);
+    redraw = !e;
   }
+  std::abort();
 	return {};
 }
 

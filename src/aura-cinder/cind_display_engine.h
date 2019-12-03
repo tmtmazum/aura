@@ -62,21 +62,22 @@ class drawable
 public:
   virtual void draw(renderer const& opts) = 0;
 };
-
-inline std::error_code start_game_session(ruleset const& rules, rules_engine& engine, display_engine& display)
-{
-  display.clear_board();
-  auto redraw = true;
-  while(!engine.is_game_over())
-  {
-    auto sesh_info = std::make_shared<session_info>(engine.get_session_info());
-
-    auto const action = display.display_session(std::move(sesh_info), redraw);
-    auto const e = engine.commit_action(action);
-    redraw = !e;
-  }
-	return {};
-}
+//
+//inline std::error_code start_game_session(ruleset const& rules, rules_engine& engine, display_engine& display)
+//{
+//  display.clear_board();
+//  auto redraw = true;
+//  while(!engine.is_game_over())
+//  {
+//    auto sesh_info = std::make_shared<session_info>(engine.get_session_info());
+//
+//    auto const action = display.display_session(std::move(sesh_info), redraw);
+//    auto const e = engine.commit_action(action);
+//    redraw = !e;
+//  }
+//  std::abort();
+//	return {};
+//}
 
 enum class cind_action_type : unsigned
 {
@@ -85,6 +86,7 @@ enum class cind_action_type : unsigned
   hovered_hand_card   = 0b000000010,
   hovered_lane_card   = 0b000000100,
   hovered_end_turn    = 0b000001000,
+  hovered_player      = 0b000010000,
   selected_lane       = 0b001000000,
   selected_hand_card  = 0b010000000,
   selected_lane_card  = 0b100000000,
@@ -99,10 +101,16 @@ struct cind_action
 
   cind_action() = default;
 
-  void reset()
+  void reset_hovered()
   {
     // keep only the selected; remove the hovered
     type &= 0b111000000;
+  }
+
+  void reset_selected()
+  {
+    // keep only the hovered; remove the selected
+    type &= 0b000111111;
   }
 
   auto value(cind_action_type t) const

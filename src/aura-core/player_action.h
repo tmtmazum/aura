@@ -20,6 +20,11 @@ struct player_action
   int target2{};
 };
 
+inline player_action make_primary_action(int card_from, int card_to)
+{
+  return player_action{action_type::primary_action, card_from, card_to};
+}
+
 inline player_action make_deploy_action(int uid, int lane_no)
 {
   return player_action{action_type::deploy, uid, lane_no};
