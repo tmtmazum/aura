@@ -111,7 +111,16 @@ void cind_display_engine::display_hand(
   ci::Rectf const &bounds)
 {
   auto const num_hand_cards = hand.size();
-  auto [cur_pos_x, cur_pos_y] = std::make_pair(bounds.getX1(), bounds.getY1());
+
+  auto const total_width = num_hand_cards * ((2*m_constants.hand_horizontal_padding) + m_constants.card_hand_width);
+
+  //! Find the left corner co-ordinate to display a rectangle of 'width' at the center
+  auto const lcenter_for = [&](auto const width)
+  {
+     return (m_constants.window_width - width) / 2;
+  };
+
+  auto [cur_pos_x, cur_pos_y] = std::make_pair(lcenter_for(total_width), bounds.getY1());
   cur_pos_y += m_constants.hand_vertical_padding;
   for (int i = 0; i < num_hand_cards; ++i)
   {
@@ -121,27 +130,22 @@ void cind_display_engine::display_hand(
 
     auto const& card = hand[i];
 
-    auto const item_selected = std::invoke([&]
-    {
-      std::lock_guard lk{m_mutex};
-      return m_selected;
-    });
-
     // draw card background
     auto const sel = std::invoke([&]
     {
-      bool selected = item_selected && (item_selected.value() == card.uid);
-      if (selected)
       {
-        return selection::selected;
+        std::lock_guard lk{m_mutex};
+        if (m_ui_action.is(uiact::selected_hand_card) && m_ui_action.value(uiact::selected_hand_card) == card.uid)
+        {
+          return selection::selected;
+        }
       }
 
       bool hovered = rect.contains(ci::ivec2{m_constants.mouse_x, m_constants.mouse_y});
       if (hovered)
       {
         std::lock_guard lk{m_mutex};
-        m_hovered = card.uid;
-        m_in_hand = true;
+        m_ui_action.add(uiact::hovered_hand_card, card.uid);
         return selection::hovered;
       }
 
@@ -155,7 +159,7 @@ void cind_display_engine::display_hand(
   }
 }
 
-void cind_display_engine::display_text(std::string const& text, ci::Rectf const& rect, ci::ColorAf const& col)
+void cind_display_engine::display_text(std::string const& text, ci::Rectf const& rect, ci::ColorAf const& col, bool center)
 {
     ci::TextBox box;
     box.font(ci::Font{box.getFont().getName(), m_constants.card_font_point});
@@ -163,6 +167,10 @@ void cind_display_engine::display_text(std::string const& text, ci::Rectf const&
     box.text(text);
     box.setColor(col);
     box.size(rect.getSize());
+    if (center)
+    {
+      box.setAlignment(ci::TextBox::Alignment::CENTER);
+    }
     auto const surf = box.render({2, 2});
     auto const textr = ci::gl::Texture::create(surf);
     ci::gl::draw(textr, rect);
@@ -170,7 +178,7 @@ void cind_display_engine::display_text(std::string const& text, ci::Rectf const&
 
 void cind_display_engine::display_lane_marker(int i, ci::Rectf const& rect)
 {
-  display_text(format_lane_marker(i), rect, {0.3, 0.3, 0.3, 1.0});
+  display_text(format_lane_marker(i), rect, {0.3, 0.3, 0.3, 1.0}, true);
 }
 
 void cind_display_engine::display_lane_card(card_info const& card, ci::Rectf const& rect, selection sel)
@@ -207,22 +215,44 @@ void cind_display_engine::display_lanes(
 
   auto const remaining_width = m_constants.window_width - width_needed;
 
-  auto lane_start_x = static_cast<float>(bounds.x1 /*+ (remaining_width / 2)*/);
+  //! Find the left corner co-ordinate to display a rectangle of 'width' at the center
+  auto const lcenter_for = [&](auto const width)
+  {
+     return (m_constants.window_width - width) / 2;
+  };
+
+  // whether or not to print lanes at the center of the screen
+  bool const center_lanes = true;
+
+  auto lane_start_x = static_cast<float>(bounds.x1 + center_lanes*(remaining_width / 2));
   auto [cur_pos_x, cur_pos_y] = std::make_pair(lane_start_x, bounds.y1);
 
   {
+    auto const max_health_bar_width = 400;
+    auto const actual_health_bar_width = ((float)player.health / player.starting_health) * max_health_bar_width;
+    auto const lcenter = lcenter_for(actual_health_bar_width);
+    auto const [x1, x2] = std::minmax(lcenter, lcenter + max_health_bar_width);
     auto const [y1, y2] = std::minmax(cur_pos_y, cur_pos_y + (sign * m_constants.board_lane_marker_height));
-    ci::Rectf rect{cur_pos_x + (remaining_width / 2), y1,  cur_pos_x + (remaining_width / 2) + 500, y2};
+    ci::Rectf rect{x1, y1, x2, y2};
+    //ci::Rectf rect{cur_pos_x + (remaining_width / 2), y1,  cur_pos_x + (remaining_width / 2) + 500, y2};
+
+    {
+      ci::gl::ScopedColor col{0.0, 0.4, 0.0, 1.0};
+      ci::gl::drawSolidRoundedRect(rect, 10, 10);
+    }
 
     auto const str = stringprintf<30>("Player | Health: %d | Mana: %d", player.health, player.mana);
-    display_text(str, rect, {0.9, 0.9, 0.9, 1.0});
+    rect.x2 = rect.x1 + max_health_bar_width;
+    display_text(str, rect, {0.9, 0.9, 0.9, 1.0}, true);
 
     cur_pos_y += (sign * (m_constants.board_lane_marker_height + m_constants.board_vertical_padding));
   }
 
   {
+    auto const [x1, x2] = std::minmax(lcenter_for(120), lcenter_for(120) + 120);
     auto const [y1, y2] = std::minmax(cur_pos_y, cur_pos_y + (sign * m_constants.board_lane_marker_height));
-    ci::Rectf rect{cur_pos_x + (remaining_width / 2), y1,  cur_pos_x + (remaining_width / 2) + 120, y2};
+    ci::Rectf rect{x1, y1,  x2, y2};
+    //ci::Rectf rect{cur_pos_x, y1,  cur_pos_x + 120, y2};
 
     if (is_current)
     {
@@ -230,13 +260,15 @@ void cind_display_engine::display_lanes(
       {
         ci::gl::ScopedColor col{1.0, 0.0, 0.0, 1.0};
         ci::gl::drawSolidRoundedRect(rect, 10, 10);
+        std::lock_guard lk{m_mutex};
+        m_ui_action.add(uiact::hovered_end_turn, 0);
       }
       else
       {
         ci::gl::ScopedColor col{0.4, 0.4, 0.4, 1.0};
         ci::gl::drawSolidRoundedRect(rect, 10, 10);
       }
-      display_text(std::string{"END TURN"}, rect, {0.9, 0.9, 0.9, 1.0});
+      display_text(std::string{"END TURN"}, rect, {0.9, 0.9, 0.9, 1.0}, true);
     }
 
     cur_pos_y += (sign * (m_constants.board_lane_marker_height + m_constants.board_vertical_padding));
@@ -260,23 +292,23 @@ void cind_display_engine::display_lanes(
   auto const starting_y = cur_pos_y;
   for (int i = 0; i < num_lanes; ++i)
   {
+    cur_pos_x += m_constants.board_horizontal_padding;
     cur_pos_y = starting_y;
     for (int j = 0; j < player.lanes[i].size() + 1; ++j)
     {
       cur_pos_y += sign * m_constants.board_vertical_padding;
-      cur_pos_x += m_constants.board_horizontal_padding;
 
       auto [y1, y2] = std::minmax(cur_pos_y, cur_pos_y + (sign * m_constants.card_board_height));
       ci::Rectf rect{cur_pos_x, y1, cur_pos_x + m_constants.card_board_width, y2};
 
       if (j == player.lanes[i].size())
       {
-        if (rect.contains(ci::vec2{m_constants.mouse_x, m_constants.mouse_y}) && m_selected && is_current)
+        if (rect.contains(ci::vec2{m_constants.mouse_x, m_constants.mouse_y}) && m_ui_action.is(uiact::selected_hand_card) && is_current)
         {
           ci::gl::ScopedColor col{m_constants.hand_hovered_color};
           ci::gl::drawSolidRoundedRect(rect, 10, 10);
           std::lock_guard lk{m_mutex};
-          m_hovered_lane = i;
+          m_ui_action.add(uiact::hovered_lane, i);
         }
       }
       else
@@ -285,10 +317,10 @@ void cind_display_engine::display_lanes(
         display_lane_card(card, rect, selection::passive);
       }
 
-      cur_pos_x += m_constants.card_board_width + m_constants.board_horizontal_padding;
       cur_pos_y += (sign * m_constants.card_board_height);
       cur_pos_y += (sign * m_constants.board_vertical_padding);
     }
+    cur_pos_x += m_constants.card_board_width + m_constants.board_horizontal_padding;
   }
 }
 
@@ -318,18 +350,61 @@ void cind_display_engine::display_player_bottom(player_info const& player, bool 
 void cind_display_engine::mouseDown(ci::app::MouseEvent event)
 {
   std::lock_guard lk{m_mutex};
-  if (m_hovered_lane && m_selected)
+
+  AURA_LOG(L"+ 0x%x", m_ui_action.type);
+  // Player hand -> lane
+  if (m_ui_action.is(uiact::hovered_lane)
+      && m_ui_action.is(uiact::selected_hand_card))
   {
-    AURA_LOG(L"Setting action with %d, %d", m_selected.value(), m_hovered_lane.value() + 1);
-    m_action.set_value(make_deploy_action(m_selected.value(), m_hovered_lane.value() + 1));
+    auto const selected_value = m_ui_action.value(uiact::selected_hand_card);
+    auto const hovered_lane = m_ui_action.value(uiact::hovered_lane);
+    AURA_LOG(L"Setting action with %d, %d", selected_value, hovered_lane + 1);
+    m_action.set_value(make_deploy_action(selected_value, hovered_lane + 1));
+    return;
   }
 
-  if (m_hovered)
+  if (m_ui_action.is(uiact::hovered_end_turn))
   {
-    auto const val = m_hovered.value();
-    m_selected = val;
-    m_can_be_targetted = m_rules_engine.get_target_list(val);
+    m_action.set_value(make_end_turn_action());
+    return;
   }
+
+  // two consecutive clicks on same card means deselection
+  if (m_ui_action.is(uiact::selected_hand_card)
+    && m_ui_action.is(uiact::hovered_hand_card)
+    && m_ui_action.value(uiact::selected_hand_card) == m_ui_action.value(uiact::hovered_hand_card))
+  {
+    AURA_LOG(L"Deselect!!");
+    m_ui_action.rm(uiact::selected_hand_card);
+    return;
+  }
+
+  // two consecutive clicks on same card means deselection
+  if (m_ui_action.is(uiact::selected_lane_card)
+    && m_ui_action.is(uiact::hovered_lane_card)
+    && m_ui_action.value(uiact::selected_lane_card) == m_ui_action.value(uiact::hovered_lane_card))
+  {
+    AURA_LOG(L"Deselect!!");
+    m_ui_action.rm(uiact::selected_lane_card);
+    return;
+  }
+
+  if (m_ui_action.is(uiact::hovered_lane_card))
+  {
+    auto const hovered_card = m_ui_action.value(uiact::hovered_lane_card);
+    m_ui_action.add(uiact::selected_lane_card, hovered_card);
+    m_can_be_targetted = m_rules_engine.get_target_list(hovered_card);
+    return;
+  }
+
+  if (m_ui_action.is(uiact::hovered_hand_card))
+  {
+    auto const hovered_card = m_ui_action.value(uiact::hovered_hand_card);
+    m_ui_action.add(uiact::selected_hand_card, hovered_card);
+    m_can_be_targetted = m_rules_engine.get_target_list(hovered_card);
+    return;
+  }
+  AURA_LOG(L"- 0x%x", m_ui_action.type);
 }
 
 void cind_display_engine::draw()
@@ -337,9 +412,7 @@ void cind_display_engine::draw()
   auto const sesh = std::invoke([&]
   {
     std::lock_guard lk{m_mutex};
-    m_hovered.reset();
-    m_in_hand = false;
-    m_hovered_lane.reset();
+    m_ui_action.reset();
 
     auto const ws = getWindowBounds().getSize();
     m_constants.window_width = ws.x;

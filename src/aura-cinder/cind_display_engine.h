@@ -14,6 +14,7 @@
 #include <thread>
 #include <optional>
 #include "display_constants.h"
+#include <aura-core/build.h>
 
 #include <aura-core/session_info.h>
 
@@ -77,19 +78,60 @@ inline std::error_code start_game_session(ruleset const& rules, rules_engine& en
 	return {};
 }
 
-enum class cind_action_type
+enum class cind_action_type : unsigned
 {
-  hovered_lane,
-  hovered_lane_card,
-  hovered_hand_card,
-  selected_hand_card,
-  selected_lane_card,
+  none                = 0b000000000,
+  hovered_lane        = 0b000000001,
+  hovered_hand_card   = 0b000000010,
+  hovered_lane_card   = 0b000000100,
+  hovered_end_turn    = 0b000001000,
+  selected_lane       = 0b001000000,
+  selected_hand_card  = 0b010000000,
+  selected_lane_card  = 0b100000000,
 };
+
+using uiact = cind_action_type;
 
 struct cind_action
 {
-  cind_action_type type;
-  int target;
+  unsigned type{};
+  std::unordered_map<cind_action_type, int> targets;
+
+  cind_action() = default;
+
+  void reset()
+  {
+    // keep only the selected; remove the hovered
+    type &= 0b111000000;
+  }
+
+  auto value(cind_action_type t) const
+  {
+    AURA_ASSERT(is(t));
+    return targets.at(t);
+  }
+
+  void add(cind_action_type new_type, int target)
+  {
+    type |= static_cast<unsigned>(new_type);
+    targets[new_type] = target;
+  }
+
+  void rm(cind_action_type new_type)
+  {
+    type &= ~static_cast<unsigned>(new_type);
+  }
+
+  cind_action(cind_action_type new_type, int target)
+    : cind_action{}
+  {
+    add(new_type, target);
+  }
+
+  bool is(cind_action_type check) const noexcept
+  {
+    return static_cast<unsigned>(check) & type;
+  }
 };
 
 class cind_display_engine
@@ -188,7 +230,7 @@ private:
 
   void display_lane_marker(int i, ci::Rectf const&);
 
-  void display_text(std::string const& text, ci::Rectf const&, ci::ColorAf const& );
+  void display_text(std::string const& text, ci::Rectf const&, ci::ColorAf const& , bool);
 
 private:
   display_constants m_constants;
@@ -203,15 +245,15 @@ private:
 
   std::thread m_logic_thread;
 
-  //std::optional<cind_action> m_ui_action;
-  std::optional<int> m_hovered;
+  cind_action m_ui_action;
+  //std::optional<int> m_hovered;
 
-  std::optional<int> m_hovered_lane;
+  //std::optional<int> m_hovered_lane;
 
   //! True if the hovered card is in hand
-  bool m_in_hand{false};
+  //bool m_in_hand{false};
 
-  std::optional<int> m_selected;
+  //std::optional<int> m_selected;
 
   //! If a card is selected, this vector stores all other cards that can be targetted
   std::vector<int> m_can_be_targetted;
