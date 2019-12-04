@@ -13,51 +13,61 @@ int generate_uid()
   return uid_counter++;
 }
 
-card_info to_card_info(card_preset const& preset, int cid)
+void session_info::remove_lane_card(int uid)
 {
-  card_info info{};
-  info.uid = generate_uid();
-  info.cid = cid;
-  info.health = preset.health;
-  info.strength = preset.strength;
-  info.cost = preset.cost;
-  info.name = preset.name;
-  info.traits = preset.traits;
-  return info;
-}
+  using lane_t = std::vector<card_info>;
+  using lane_it_t = lane_t::iterator;
 
-card_info generate_card(ruleset const& rs, deck const& d, int turn)
-{
-  static auto ss = std::invoke([]
+  lane_t* lane_ptr{};
+  lane_it_t card_it{};
+  for (auto& player : players)
   {
-    srand(time(0));
-    return 0;
-  });
-
-  std::vector<card_preset> selection_pool;
-
-  if (rs.draw_limit_multiplier > 0.1 && 
-    ((rs.draw_limit_multiplier * turn) < 9))
-  {
-    auto const limit = (rs.draw_limit_multiplier * turn);
-    for (auto const& p : presets)
+    for (auto& lane : player.lanes)
     {
-      if (p.cost <= limit)
+      for (auto it = lane.begin(); it != lane.end(); ++it)
       {
-        selection_pool.emplace_back(p);
+        if (it->uid == uid)
+        {
+          lane_ptr = &lane;
+          card_it = it;
+        }
       }
     }
   }
-  else
+  AURA_ASSERT(lane_ptr);
+  lane_ptr->erase(card_it);
+}
+
+bool player_info::has_free_lane() const noexcept
+{
+  for (auto& lane : lanes)
   {
-    selection_pool = presets; 
+    if (lane.empty())
+    {
+      return true;
+    }
   }
+  return false;
+}
 
-  auto const n = selection_pool.size();
-  auto const i = (rand() % n);
-  auto const& preset = selection_pool.at(i);
-
-  return to_card_info(preset, i);
+bool session_info::is_front_of_lane(int uid) const noexcept
+{
+  for (auto& player : players)
+  {
+    for (auto& lane : player.lanes)
+    {
+      auto const n = lane.size();
+      if (n == 1 && lane[0].uid == uid)
+      {
+        return true;
+      }
+      else if (n > 1 && lane[n-1].uid == uid)
+      {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 } // namespace aura

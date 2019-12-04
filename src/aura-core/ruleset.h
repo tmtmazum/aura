@@ -36,7 +36,7 @@ struct ruleset
   float draw_limit_multiplier{2.0};
 
   //! Challenger (1st player) starts off with n [0] fortifications
-  int challenger_starts_with_n_forts{1};
+  int challenger_starts_with_n_forts{0};
 
   //! Defender (2nd player) starts off with n [0] fortifications
   //! This is to balance out the 1st player advantage

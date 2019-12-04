@@ -1,7 +1,11 @@
 #pragma once
+
+#include <aura-core/unit_traits.h>
+
 #include <vector>
 #include <string>
 #include <algorithm>
+#include <system_error>
 
 namespace aura
 {
@@ -14,6 +18,7 @@ struct card_info
   int cid; //!< unique identifier for card preset
 
   int health;
+  int starting_health;
   int strength;
   int cost;
   bool resting{false}; //!< resting units cannot be selected to take an action
@@ -33,17 +38,21 @@ struct card_info
 
 class deck;
 struct ruleset;
-card_info generate_card(ruleset const& r, deck const& d, int turn = 1);
 int generate_uid();
 
 struct card_preset;
-card_info to_card_info(card_preset const& p, int cid);
 
-struct player_info
+struct player_info : public card_info
 {
-  int uid = generate_uid();
-  int health;
-  int starting_health;
+  player_info()
+    : card_info{}
+  {
+    uid = generate_uid();
+    traits.emplace_back(unit_traits::player);
+  }
+  //int uid = generate_uid();
+  //int health;
+  //int starting_health;
   int mana;
   int starting_mana;
 
@@ -61,12 +70,15 @@ struct player_info
       }
     }
   }
+
+  bool has_free_lane() const noexcept;
 };
 
 struct session_info
 {
   int turn{1};
   int current_player{0};
+  bool game_over{false};
   std::vector<player_info> players;
 
   template <typename Fn>
@@ -77,6 +89,12 @@ struct session_info
       p.for_each_lane_card(fn);
     }
   }
+
+  void remove_lane_card(int uid);
+
+  bool is_front_of_lane(int uid) const noexcept;
 };
+
+using primary_action_t = std::error_code(*)(session_info& session, card_info& actor, card_info& target);
 
 } // namespace aura

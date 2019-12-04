@@ -7,6 +7,8 @@
 #include <algorithm>
 #include <optional>
 #include <functional>
+#include <cstdlib>
+#include <ctime>
 
 namespace aura
 {
@@ -32,7 +34,7 @@ local_rules_engine::local_rules_engine(ruleset const& rs)
       player.hand.emplace_back(generate_card(rs, rs.challenger_deck));  
     }
 
-    for (auto i = 0; i < rs.defender_starts_with_n_forts; ++i)
+    for (auto i = 0; i < rs.challenger_starts_with_n_forts; ++i)
     {
       player.hand.emplace_back(to_card_info(presets[0], 0));
     }
@@ -82,6 +84,100 @@ std::vector<int> local_rules_engine::get_target_list(int uid) const
   return {};
 }
 
+card_info* local_rules_engine::find_actor(int uid)
+{
+  auto& player = m_session_info.players[m_session_info.current_player];
+  for (auto& lane : player.lanes)
+  {
+    for (auto& card : lane)
+    {
+      if (card.uid == uid)
+      {
+        return &card;
+      }
+    }
+  }
+  return nullptr;
+}
+
+card_info* local_rules_engine::find_target(int uid)
+{
+  for (auto& player : m_session_info.players)
+  {
+    if (player.uid == uid)
+    {
+      return &player;
+    }
+
+    for (auto& lane : player.lanes)
+    {
+      for (auto& card : lane)
+      {
+        if (card.uid == uid)
+        {
+          return &card;
+        }
+      }
+    }
+  }
+  return nullptr;
+}
+
+card_info local_rules_engine::to_card_info(card_preset const& preset, int cid)
+{
+  card_info info{};
+  info.uid = generate_uid();
+  info.cid = cid;
+  info.health = preset.health;
+  info.starting_health = preset.health;
+  info.strength = preset.strength;
+  info.cost = preset.cost;
+  info.name = preset.name;
+  info.traits = preset.traits;
+
+  if (preset.primary)
+  {
+    auto [it, success] = m_primary_actions.emplace(info.uid, preset.primary);
+    AURA_ASSERT(success);
+  }
+  return info;
+}
+
+card_info local_rules_engine::generate_card(ruleset const& rs, deck const& d, int turn)
+{
+  static auto ss = std::invoke([]
+  {
+    srand(time(0));
+    return 0;
+  });
+
+  std::vector<card_preset> selection_pool;
+
+  if (rs.draw_limit_multiplier > 0.1 && 
+    ((rs.draw_limit_multiplier * turn) < 9))
+  {
+    auto const limit = (rs.draw_limit_multiplier * turn);
+    for (auto const& p : presets)
+    {
+      if (p.cost <= limit)
+      {
+        selection_pool.emplace_back(p);
+      }
+    }
+  }
+  else
+  {
+    selection_pool = presets; 
+  }
+
+  auto const n = selection_pool.size();
+  auto const i = (rand() % n);
+  auto const& preset = selection_pool.at(i);
+
+  return to_card_info(preset, i);
+}
+
+
 //! Commit a player action
 std::error_code local_rules_engine::commit_action(player_action const& action) 
 {
@@ -89,7 +185,7 @@ std::error_code local_rules_engine::commit_action(player_action const& action)
   {
   case action_type::end_turn:
   {
-    LEGAL_ASSERT(!m_game_over, L"Cannot end turn - game is already over.");
+    LEGAL_ASSERT(!m_session_info.game_over, L"Cannot end turn - game is already over.");
     if (m_session_info.current_player)
     {
       m_session_info.turn++;
@@ -111,107 +207,24 @@ std::error_code local_rules_engine::commit_action(player_action const& action)
 
   case action_type::forfeit:
   {
-    LEGAL_ASSERT(!m_game_over, L"Cannot forfeit - game is already over.");
-    m_game_over = true;
+    LEGAL_ASSERT(!m_session_info.game_over, L"Cannot forfeit - game is already over.");
+    m_session_info.game_over = true;
     return {};
   }
 
   case action_type::primary_action:
   {
-    auto& player = m_session_info.players[m_session_info.current_player];
     auto const card_actor_uid = action.target1;
     auto const card_target_uid = action.target2;
-    auto* card_actor = std::invoke([&]() -> card_info*
-    {
-      for (auto& lane : player.lanes)
-      {
-        for (auto& card : lane)
-        {
-          if (card.uid == card_actor_uid)
-          {
-            return &card;
-          }
-        }
-      }
-      return nullptr;
-    });
+
+    auto* card_actor = find_actor(card_actor_uid);
+    auto* card_target = find_target(card_target_uid);
     LEGAL_ASSERT(card_actor, L"No actor card with that identifier found in current player's hand");
-    LEGAL_ASSERT(!card_actor->resting, L"Player cannot take action when resting");
-    LEGAL_ASSERT(card_actor->strength, L"This unit cannot attack");
+    LEGAL_ASSERT(card_target, L"No target card with that identifier found");
 
-    auto& other_player = m_session_info.players[!m_session_info.current_player];
-    if (other_player.uid == card_target_uid)
-    {
-      auto const blank_lane = std::invoke([&]
-      {
-        for (auto const& lane : other_player.lanes)
-        {
-          if (lane.empty())
-          {
-            return true;
-          }
-        }
-        return false;
-      });
-      LEGAL_ASSERT(blank_lane, L"There are no free lanes available to target the enemy champion");
-
-      // targetting other player
-      auto const reduced_health = other_player.health - card_actor->strength;
-      if (reduced_health > 0)
-      {
-        other_player.health = reduced_health;
-      }
-      else
-      {
-        AURA_LOG(L"Player %d has won the game!", m_session_info.current_player);
-        m_game_over = true;
-      }
-      card_actor->resting = true;
-      return {};
-    }
-
-    auto [maybe_target, rm_target, front_of_lane] = std::invoke([&]
-    {
-      std::tuple<std::optional<std::vector<card_info>::iterator>,
-        std::function<void(std::vector<card_info>::iterator)>, bool> target{};
-
-      for (auto& p : m_session_info.players)
-      {
-        for (auto& lane : p.lanes)
-        {
-          for (auto it = lane.begin(); it != lane.end(); ++it)
-          {
-            if (it->uid == card_target_uid)
-            {
-              std::get<0>(target) = it;
-              std::get<1>(target) = [&lane](auto it) { lane.erase(it); };
-              std::get<2>(target) = std::invoke([&]() {
-                auto copy_it = it;
-                copy_it++;
-                return copy_it == lane.end();
-              });
-              return target;
-            }
-          }
-        }
-      }
-      return target;
-    });
-    LEGAL_ASSERT(maybe_target, L"No target card with that identifier found on the board");
-    LEGAL_ASSERT(front_of_lane || card_actor->has_trait(unit_traits::long_range),
-      L"This unit type can only target enemies at the front of their lane");
-
-    auto const reduced_health = (*maybe_target)->health - card_actor->strength;
-    if (reduced_health > 0)
-    {
-      (*maybe_target)->health = reduced_health;
-    }
-    else
-    {
-      rm_target(*maybe_target);
-    }
-    card_actor->resting = true;
-    return {};
+    auto it = m_primary_actions.find(card_actor_uid);
+    LEGAL_ASSERT(it != m_primary_actions.end(), L"No actions found for this unit!!");
+    return it->second(m_session_info, *card_actor, *card_target);
   }
 
   case action_type::deploy:
