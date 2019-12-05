@@ -87,6 +87,13 @@ std::vector<int> local_rules_engine::get_target_list(int uid) const
 card_info* local_rules_engine::find_actor(int uid)
 {
   auto& player = m_session_info.players[m_session_info.current_player];
+  for (auto& card : player.hand)
+  {
+    if (card.uid == uid)
+    {
+      return &card;
+    }
+  }
   for (auto& lane : player.lanes)
   {
     for (auto& card : lane)
@@ -134,16 +141,31 @@ card_info local_rules_engine::to_card_info(card_preset const& preset, int cid)
   info.cost = preset.cost;
   info.name = preset.name;
   info.traits = preset.traits;
+  info.energy = preset.energy;
+  info.starting_energy = preset.energy;
+  info.description = preset.special_descr;
 
   if (preset.primary)
   {
     auto [it, success] = m_primary_actions.emplace(info.uid, preset.primary);
     AURA_ASSERT(success);
   }
+
+  if (preset.on_deploy)
+  {
+    auto [it, success] = m_deploy_actions.emplace(info.uid, preset.on_deploy);
+    AURA_ASSERT(success);
+  }
+
+  if (preset.on_death)
+  {
+    auto [it, success] = m_death_actions.emplace(info.uid, preset.on_death);
+    AURA_ASSERT(success);
+  }
   return info;
 }
 
-card_info local_rules_engine::generate_card(ruleset const& rs, deck const& d, int turn)
+card_info local_rules_engine::generate_card(ruleset const& rs, deck& d, int turn)
 {
   static auto ss = std::invoke([]
   {
@@ -151,30 +173,27 @@ card_info local_rules_engine::generate_card(ruleset const& rs, deck const& d, in
     return 0;
   });
 
-  std::vector<card_preset> selection_pool;
+  auto const& preset = d.draw(turn, rs.draw_limit_multiplier * turn);
 
-  if (rs.draw_limit_multiplier > 0.1 && 
-    ((rs.draw_limit_multiplier * turn) < 9))
+  return to_card_info(preset, 0);
+}
+
+std::wstring local_rules_engine::describe(unit_traits trait) const noexcept
+{
+  switch (trait)
   {
-    auto const limit = (rs.draw_limit_multiplier * turn);
-    for (auto const& p : presets)
-    {
-      if (p.cost <= limit)
-      {
-        selection_pool.emplace_back(p);
-      }
-    }
+  case unit_traits::infantry: return L"infantry: traverses by land";
+  case unit_traits::aerial:  return L"aerial: traverses by air";
+  case unit_traits::structure: return L"structure: good for providing cover and bonuses";
+  case unit_traits::player: return L"player: player champion";
+  case unit_traits::item: return L"item: can be applied to card on board";
+  case unit_traits::twice: return L"can act twice per turn";
+  case unit_traits::thrice: return L"can act three times per turn";
+  case unit_traits::assassin: return L"assassin: can attack same turn as deployment without rest";
+  case unit_traits::long_range: return L"long-range: can target any enemy unit (regardless of lane obstructions)";
+  case unit_traits::healer: return L"healer: can heal friendly units";
   }
-  else
-  {
-    selection_pool = presets; 
-  }
-
-  auto const n = selection_pool.size();
-  auto const i = (rand() % n);
-  auto const& preset = selection_pool.at(i);
-
-  return to_card_info(preset, i);
+  return L"unknown";
 }
 
 
@@ -195,12 +214,17 @@ std::error_code local_rules_engine::commit_action(player_action const& action)
         player.mana = player.starting_mana;
         player.for_each_lane_card([](auto& card)
         {
-          card.resting = false;
+          card.energy = card.starting_energy;
         });
       }
     }
-    m_session_info.players[m_session_info.current_player]
-      .hand.emplace_back(generate_card(m_rules, m_rules.challenger_deck, m_session_info.turn));
+    auto& cur_player = m_session_info.players[m_session_info.current_player];
+    for (int i = 0; i < cur_player.num_draws_per_turn; ++i)
+    {
+      auto& deck = m_session_info.current_player ? m_rules.defender_deck : m_rules.challenger_deck;
+      cur_player.hand.emplace_back(generate_card(m_rules, deck, m_session_info.turn));
+    }
+    //cur_player.hand.emplace_back(to_card_info(specials[0], 0));
     m_session_info.current_player = !m_session_info.current_player;
     return {};
   }
@@ -224,7 +248,28 @@ std::error_code local_rules_engine::commit_action(player_action const& action)
 
     auto it = m_primary_actions.find(card_actor_uid);
     LEGAL_ASSERT(it != m_primary_actions.end(), L"No actions found for this unit!!");
-    return it->second(m_session_info, *card_actor, *card_target);
+    auto const error = it->second(m_session_info, *card_actor, *card_target);
+    if (error)
+    {
+      return error;
+    }
+    if (card_target->health <= 0)
+    {
+      if (card_target->has_trait(unit_traits::player))
+      {
+        AURA_LOG(L"Player %d has won the game!", m_session_info.current_player);
+        m_session_info.game_over = true;
+      }
+      else
+      {
+        if (auto act = m_death_actions.find(card_target->uid); act != m_death_actions.end())
+        {
+          act->second(m_session_info, m_session_info.players[!m_session_info.current_player], 
+            m_session_info.players[m_session_info.current_player]);
+        }
+        m_session_info.remove_lane_card(card_target->uid);
+      }
+    }
   }
 
   case action_type::deploy:
@@ -238,13 +283,18 @@ std::error_code local_rules_engine::commit_action(player_action const& action)
       return card.uid == card_id;
     });
     LEGAL_ASSERT(it != end(player.hand), L"No card with that identifier was found in the current player's hand");
+    LEGAL_ASSERT(!it->has_trait(unit_traits::item), L"Cannot deploy item cards");
     LEGAL_ASSERT(it->cost <= player.mana, L"Insufficient mana to deploy that card");
     if (!it->has_trait(unit_traits::assassin))
     {
-      it->resting = true;
+      it->energy = 0;
     }
     player.mana -= it->cost;
-    player.lanes[lane_id - 1].emplace_back(*it);
+    auto& card = player.lanes[lane_id - 1].emplace_back(*it);
+    if (auto it = m_deploy_actions.find(card_id); it != m_deploy_actions.end())
+    {
+      it->second(m_session_info, player, m_session_info.players[!m_session_info.current_player]);
+    }
     player.hand.erase(it);
     return {};
   }

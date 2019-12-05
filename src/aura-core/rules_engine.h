@@ -41,6 +41,8 @@ public:
 
   //! Commit a player action
   virtual std::error_code commit_action(player_action const&) = 0;
+
+  virtual std::wstring describe(unit_traits trait) const noexcept = 0;
 };
 
 class display_engine;

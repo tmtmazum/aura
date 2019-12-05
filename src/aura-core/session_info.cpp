@@ -38,6 +38,28 @@ void session_info::remove_lane_card(int uid)
   lane_ptr->erase(card_it);
 }
 
+void session_info::remove_hand_card(int uid)
+{
+  using hand_t = std::vector<card_info>;
+  using hand_it_t = hand_t::iterator;
+
+  hand_t* hand{};
+  hand_it_t card_it{};
+  for (auto& player : players)
+  {
+    for (auto it = player.hand.begin(); it != player.hand.end(); ++it)
+    {
+      if (it->uid == uid)
+      {
+        hand = &player.hand;
+        card_it = it;
+      }
+    }
+  }
+  AURA_ASSERT(hand);
+  hand->erase(card_it);
+}
+
 bool player_info::has_free_lane() const noexcept
 {
   for (auto& lane : lanes)

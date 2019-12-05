@@ -39,24 +39,77 @@ std::string format_lane_marker(int i)
   return s;
 }
 
+std::string format_strength(card_info const& card)
+{
+  if (card.strength > 0)
+  {
+    auto const times = card.starting_energy > 1 ? std::string{"*"} + std::to_string(card.starting_energy) : "";
+    return "\n" + std::to_string(card.strength) + times + " dmg/turn"; 
+  }
+  else if (card.strength < 0)
+  {
+    return "\n+" + std::to_string(-card.strength) + " HP/turn"; 
+  }
+  return "";
+}
+
 std::string format_card_lane(card_info const& card)
 {
   std::string s{"["};
   s += std::to_string(card.cost);
   s += "] ";
   s += ci::msw::toUtf8String(card.name);
-  if (card.resting)
+  if (card.has_trait(unit_traits::item))
+  {
+    return s;
+  }
+  if (card.is_resting() && card.strength)
   {
     s += " (Zzz..)";
   }
   s += "\n---";
-  s += "\nStrength: ";
-  s += std::to_string(card.strength);
+  s += format_strength(card);
   s += "\nHealth: ";
   s += std::to_string(card.health);
   return s;
 }
 
+std::string format_card_descr(rules_engine& re, card_info const& card)
+{
+  std::string s{"["};
+  s += std::to_string(card.cost);
+  s += "] ";
+  s += ci::msw::toUtf8String(card.name);
+  s += "\n---\n\n";
+  s += ci::msw::toUtf8String(card.description);
+  if (card.has_trait(unit_traits::item))
+  {
+    return s;
+  }
+  s += format_strength(card);
+  s += "\nHealth: ";
+  s += std::to_string(card.health);
+  s += " / " + std::to_string(card.starting_health);
+  s += "\nCost: ";
+  s += std::to_string(card.cost);
+  s += "\n---\n\n";
+  for (auto const& trait : card.traits)
+  {
+    s += ci::msw::toUtf8String(re.describe(trait));
+    s += "\n";
+  }
+  s += "\n---\n\n";
+  if (card.is_resting())
+  {
+    s += "\nresting: This unit is currently resting and cannot act this turn";
+  }
+  if (!card.is_visible)
+  {
+    s += "\ncloaked: This unit is hidden and cannot be targetted this turn";
+  }
+  return s;
+
+}
 
 std::string format_card_hand(card_info const& card)
 {
@@ -65,8 +118,12 @@ std::string format_card_hand(card_info const& card)
   s += "] ";
   s += ci::msw::toUtf8String(card.name);
   s += "\n---";
-  s += "\nStrength: ";
-  s += std::to_string(card.strength);
+  if (card.has_trait(unit_traits::item))
+  {
+    return s;
+  }
+
+  s += format_strength(card);
   s += "\nHealth: ";
   s += std::to_string(card.health);
   return s;
@@ -79,7 +136,7 @@ auto to_string(std::wstring const& ws)
 
 } // namespace {}
 
-void cind_display_engine::display_hand_card(card_info const& card, ci::Rectf const& rect, selection sel)
+void cind_display_engine::display_hand_card(card_info const& card, ci::Rectf const& rect, selection sel, bool is_current_player)
 {
   auto const col = std::invoke([&]
   {
@@ -97,6 +154,11 @@ void cind_display_engine::display_hand_card(card_info const& card, ci::Rectf con
   {
     ci::gl::ScopedColor scoped_col{col};
     ci::gl::drawSolidRoundedRect(rect, 10, 10);
+  }
+
+  if (!is_current_player)
+  {
+    return;
   }
 
   ci::TextBox box;
@@ -134,7 +196,14 @@ void cind_display_engine::display_lane_card(card_info const& card, ci::Rectf con
   box.font(ci::Font{box.getFont().getName(), m_constants.card_font_point});
 
   box.text(format_card_lane(card));
-  box.setColor({0.8, 0.8, 1.0, 1.0});
+  if (card.is_resting())
+  {
+    box.setColor({0.4, 0.4, 0.4, 1.0});
+  }
+  else
+  {
+    box.setColor({0.8, 0.8, 1.0, 1.0});
+  }
   box.size(rect.getSize());
   auto const surf = box.render({2, 2});
   auto const textr = ci::gl::Texture::create(surf);
@@ -143,7 +212,8 @@ void cind_display_engine::display_lane_card(card_info const& card, ci::Rectf con
 
 void cind_display_engine::display_hand(
   std::vector<card_info> const &hand,
-  ci::Rectf const &bounds)
+  ci::Rectf const &bounds,
+  bool is_current_player)
 {
   auto const num_hand_cards = hand.size();
 
@@ -175,6 +245,10 @@ void cind_display_engine::display_hand(
         if (hovered)
         {
           m_ui_action.add(uiact::hovered_hand_card, card.uid);
+          if (is_current_player)
+          {
+            m_hovered_description = format_card_descr(m_rules_engine, card);
+          }
         }
 
         if (m_ui_action.is(uiact::selected_hand_card) && m_ui_action.value(uiact::selected_hand_card) == card.uid)
@@ -191,14 +265,14 @@ void cind_display_engine::display_hand(
       return selection::passive;
     });
 
-    display_hand_card(card, rect, sel);
+    display_hand_card(card, rect, sel, is_current_player);
 
     cur_pos_x += m_constants.card_hand_width;
     cur_pos_x += m_constants.hand_horizontal_padding;
   }
 }
 
-void cind_display_engine::display_text(std::string const& text, ci::Rectf const& rect, ci::ColorAf const& col, bool center)
+void cind_display_engine::display_text(std::string const& text, ci::Rectf const& rect, ci::ColorAf const& col, bool center) const
 {
     ci::TextBox box;
     box.font(ci::Font{box.getFont().getName(), m_constants.card_font_point});
@@ -249,7 +323,7 @@ void cind_display_engine::display_lanes(
   auto [cur_pos_x, cur_pos_y] = std::make_pair(lane_start_x, bounds.y1);
 
   {
-    auto const max_health_bar_width = 400;
+    auto const max_health_bar_width = 50.0f * player.starting_health;
     auto const actual_health_bar_width = ((float)player.health / player.starting_health) * max_health_bar_width;
     auto const lcenter = lcenter_for(actual_health_bar_width);
 
@@ -280,7 +354,7 @@ void cind_display_engine::display_lanes(
       ci::gl::drawSolidRoundedRect(reduced_rect, 10, 10);
     }
 
-    auto const str = stringprintf<30>("Player | Health: %d | Mana: %d", player.health, player.mana);
+    auto const str = stringprintf<64>("Player | Health: %d / %d | Mana: %d", player.health, player.starting_health, player.mana);
     //reduced_rect.x2 = reduced_rect.x1 + max_health_bar_width;
     display_text(str, max_rect, {0.9, 0.9, 0.9, 1.0}, true);
 
@@ -354,15 +428,21 @@ void cind_display_engine::display_lanes(
       else
       {
         auto const& card = player.lanes[i][j];
+        bool const hovered = rect.contains(ci::vec2{m_constants.mouse_x, m_constants.mouse_y});
+        if (hovered)
+        {
+          std::lock_guard lk{m_mutex};
+          m_ui_action.add(uiact::hovered_lane_card, card.uid);
+          m_hovered_description = format_card_descr(m_rules_engine, card);
+        }
+
         if (m_ui_action.is(uiact::selected_lane_card) && m_ui_action.value(uiact::selected_lane_card) == card.uid)
         {
           display_lane_card(card, rect, selection::selected);
         }
-        else if (rect.contains(ci::vec2{m_constants.mouse_x, m_constants.mouse_y}))
+        else if (hovered)
         {
           display_lane_card(card, rect, selection::hovered);
-          std::lock_guard lk{m_mutex};
-          m_ui_action.add(uiact::hovered_lane_card, card.uid);
         }
         else
         {
@@ -381,7 +461,7 @@ void cind_display_engine::display_player_top(player_info const& player, bool is_
 {
   auto [cur_pos_x, cur_pos_y] = std::make_pair(0.0f, 0.0f);
   auto const hand_height = static_cast<float>(m_constants.card_hand_height + (2*m_constants.hand_vertical_padding));
-  display_hand(player.hand, ci::Rectf{cur_pos_x, cur_pos_y, 500.0f, hand_height});
+  display_hand(player.hand, ci::Rectf{cur_pos_x, cur_pos_y, 500.0f, hand_height}, is_current);
 
   cur_pos_y += hand_height;
 
@@ -393,10 +473,10 @@ void cind_display_engine::display_player_bottom(player_info const& player, bool 
   auto [cur_pos_x, cur_pos_y] = std::make_pair(0.0f, 0.0f);
   auto const hand_height = static_cast<float>(m_constants.card_hand_height + (2*m_constants.hand_vertical_padding));
   cur_pos_y = m_constants.window_height - hand_height;
-  display_hand(player.hand, ci::Rectf{cur_pos_x, cur_pos_y, 500.0f, hand_height});
+  display_hand(player.hand, ci::Rectf{cur_pos_x, cur_pos_y, 500.0f, hand_height}, is_current);
 
-  cur_pos_y = cur_pos_y - hand_height;
-  display_lanes(player, ci::Rectf{cur_pos_x, cur_pos_y, 0, 0}, is_current, true);
+  //cur_pos_y = cur_pos_y - hand_height;
+  display_lanes(player, ci::Rectf{cur_pos_x, m_constants.window_height - hand_height, 0, 0}, is_current, true);
   //display_lanes_top(player, m_constants, ci::Rectf{cur_pos_x, cur_pos_y, 0, 0});
 }
 
@@ -424,6 +504,24 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
     )
   {
     m_action.set_value(make_primary_action(m_ui_action.value(uiact::selected_lane_card), m_ui_action.value(uiact::hovered_lane_card)));
+    m_ui_action.reset_selected();
+    return;
+  }
+  
+  // Hand card -> Lane card
+  if (m_ui_action.is(uiact::selected_hand_card)
+      && m_ui_action.is(uiact::hovered_lane_card))
+  {
+    m_action.set_value(make_primary_action(m_ui_action.value(uiact::selected_hand_card), m_ui_action.value(uiact::hovered_lane_card)));
+    m_ui_action.reset_selected();
+    return;
+  }
+
+  // Hand card -> Player
+  if (m_ui_action.is(uiact::selected_hand_card)
+      && m_ui_action.is(uiact::hovered_player))
+  {
+    m_action.set_value(make_primary_action(m_ui_action.value(uiact::selected_hand_card), m_ui_action.value(uiact::hovered_player)));
     m_ui_action.reset_selected();
     return;
   }
@@ -481,6 +579,17 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
   AURA_LOG(L"- 0x%x", m_ui_action.type);
 }
 
+void cind_display_engine::display_hovered_description() const
+{
+  auto [x1, x2] = std::minmax(m_constants.window_width - m_constants.highlight_descr_width, m_constants.window_width);
+  auto const mid_height = m_constants.window_height/2.0f;
+  auto [y1, y2] = std::minmax(mid_height - m_constants.highlight_descr_height/2.0f, mid_height + m_constants.highlight_descr_height/2.0f);
+  ci::Rectf rect{x1, y1, x2, y2};
+  display_text(m_hovered_description, rect, {0.9, 0.9, 0.9, 1.0}, true);
+
+  m_constants.window_width;
+}
+
 void cind_display_engine::draw()
 {
   auto const sesh = std::invoke([&]
@@ -493,6 +602,8 @@ void cind_display_engine::draw()
     m_constants.window_height = ws.y;
     m_constants.mouse_x = getMousePos().x - getWindowPos().x;
     m_constants.mouse_y = getMousePos().y - getWindowPos().y;
+
+    m_hovered_description.clear();
     return m_session_info;
   });
 
@@ -506,6 +617,11 @@ void cind_display_engine::draw()
   assert(sesh->current_player == 0 || sesh->current_player == 1);
   display_player_top(sesh->players[0], sesh->current_player == 0);
   display_player_bottom(sesh->players[1], sesh->current_player == 1);
+
+  if (!m_hovered_description.empty())
+  {
+    display_hovered_description();
+  }
 }
 
 }

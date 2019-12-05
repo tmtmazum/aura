@@ -1,5 +1,7 @@
 #pragma once
 
+#include <aura-core/card_preset.h>
+
 namespace aura
 {
 
@@ -8,8 +10,6 @@ enum class game_mode : int
 	PvP,
 	PvC
 };
-
-struct deck{};
 
 struct ruleset
 {
@@ -42,8 +42,8 @@ struct ruleset
   //! This is to balance out the 1st player advantage
   int defender_starts_with_n_forts{3};
 
-  deck challenger_deck{};
-  deck defender_deck{};
+  mutable deck challenger_deck = make_standard_deck();
+  mutable deck defender_deck = make_standard_deck();
 };
 
 } // namespace aura

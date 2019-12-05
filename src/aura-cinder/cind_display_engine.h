@@ -62,22 +62,6 @@ class drawable
 public:
   virtual void draw(renderer const& opts) = 0;
 };
-//
-//inline std::error_code start_game_session(ruleset const& rules, rules_engine& engine, display_engine& display)
-//{
-//  display.clear_board();
-//  auto redraw = true;
-//  while(!engine.is_game_over())
-//  {
-//    auto sesh_info = std::make_shared<session_info>(engine.get_session_info());
-//
-//    auto const action = display.display_session(std::move(sesh_info), redraw);
-//    auto const e = engine.commit_action(action);
-//    redraw = !e;
-//  }
-//  std::abort();
-//	return {};
-//}
 
 enum class cind_action_type : unsigned
 {
@@ -222,7 +206,8 @@ private:
 
   void display_hand(
     std::vector<card_info> const &hand,
-    ci::Rectf const &bounds);
+    ci::Rectf const &bounds,
+    bool is_current_player);
 
   void display_lanes(player_info const& player, ci::Rectf const& bounds, bool is_current, bool reverse_y = false);
 
@@ -232,13 +217,15 @@ private:
 
   enum class selection : int { passive, hovered, selected };
 
-  void display_hand_card(card_info const& card, ci::Rectf const& rect, selection sel);
+  void display_hand_card(card_info const& card, ci::Rectf const& rect, selection sel, bool is_current_player);
 
   void display_lane_card(card_info const& info, ci::Rectf const& bounds, selection s);
 
   void display_lane_marker(int i, ci::Rectf const&);
 
-  void display_text(std::string const& text, ci::Rectf const&, ci::ColorAf const& , bool);
+  void display_text(std::string const& text, ci::Rectf const&, ci::ColorAf const& , bool) const;
+
+  void cind_display_engine::display_hovered_description() const;
 
 private:
   display_constants m_constants;
@@ -254,6 +241,10 @@ private:
   std::thread m_logic_thread;
 
   cind_action m_ui_action;
+
+  //! Full description of the card currently hovered over
+  std::string m_hovered_description;
+
   //std::optional<int> m_hovered;
 
   //std::optional<int> m_hovered_lane;

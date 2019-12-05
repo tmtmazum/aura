@@ -121,7 +121,7 @@ std::wstring refit(std::wstring_view view, size_t size)
 void print_board_card(card_info const& card)
 {
   AURA_PRINT(L"[<u%d> %ls %lc(%d/%d)]", card.uid, refit(card.name, 9).c_str(),
-             card.resting && card.strength ? L'R' : ' ', card.strength,
+             card.is_resting() && card.strength ? L'R' : ' ', card.strength,
              card.health);
 }
 

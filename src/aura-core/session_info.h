@@ -21,8 +21,10 @@ struct card_info
   int starting_health;
   int strength;
   int cost;
-  bool resting{false}; //!< resting units cannot be selected to take an action
-  bool is_visible; //!< this unit can be targetted for an action
+  int energy{1};
+  int starting_energy{1};//!< determines how many times this unit can act / turn before needing to rest
+
+  bool is_visible{true}; //!< this unit can be targetted for an action
   std::wstring name;
   std::wstring description;
   std::vector<unit_traits> traits;
@@ -34,6 +36,11 @@ struct card_info
       return t == criteria;
     });
   }
+
+  bool is_resting() const noexcept
+  {
+    return !energy && !has_trait(unit_traits::structure);
+  }
 };
 
 class deck;
@@ -44,15 +51,14 @@ struct card_preset;
 
 struct player_info : public card_info
 {
+  int num_draws_per_turn{1};
+
   player_info()
     : card_info{}
   {
     uid = generate_uid();
     traits.emplace_back(unit_traits::player);
   }
-  //int uid = generate_uid();
-  //int health;
-  //int starting_health;
   int mana;
   int starting_mana;
 
@@ -91,10 +97,11 @@ struct session_info
   }
 
   void remove_lane_card(int uid);
+  void remove_hand_card(int uid);
 
   bool is_front_of_lane(int uid) const noexcept;
 };
 
-using primary_action_t = std::error_code(*)(session_info& session, card_info& actor, card_info& target);
+using card_action_t = std::error_code(*)(session_info& session, card_info& actor, card_info& target);
 
 } // namespace aura
