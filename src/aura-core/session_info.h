@@ -1,11 +1,13 @@
 #pragma once
 
 #include <aura-core/unit_traits.h>
+#include <aura-core/terrain_types.h>
 
 #include <vector>
 #include <string>
 #include <algorithm>
 #include <system_error>
+#include <functional>
 
 namespace aura
 {
@@ -20,14 +22,30 @@ struct card_info
   int health;
   int starting_health;
   int strength;
+  int starting_strength;
   int cost;
   int energy{1};
   int starting_energy{1};//!< determines how many times this unit can act / turn before needing to rest
 
   bool is_visible{true}; //!< this unit can be targetted for an action
+  bool on_preferred_terrain{false}; //!< whether this unit is standing on preferred terrain or not
+
   std::wstring name;
   std::wstring description;
   std::vector<unit_traits> traits;
+  std::vector<terrain_types> preferred_terrain;
+
+  //! Returns effective health (including terrain bonuses)
+  auto effective_health() const noexcept
+  {
+    return on_preferred_terrain ? health + 1 : health;
+  }
+
+  //! Returns effective strength (including terrain bonuses)
+  auto effective_strength() const noexcept
+  {
+    return on_preferred_terrain ? strength + 1 : strength;
+  }
 
   bool has_trait(unit_traits criteria) const noexcept
   {
@@ -39,8 +57,10 @@ struct card_info
 
   bool is_resting() const noexcept
   {
-    return !energy && !has_trait(unit_traits::structure);
+    return !energy && strength;
   }
+
+  virtual ~card_info() = default;
 };
 
 class deck;
@@ -52,6 +72,13 @@ struct card_preset;
 struct player_info : public card_info
 {
   int num_draws_per_turn{1};
+  //int num_drawn_this_turn{0};
+  int picks_available{};
+  int mana;
+  int starting_mana;
+
+  std::vector<card_info> hand;
+  std::vector<std::vector<card_info>> lanes;
 
   player_info()
     : card_info{}
@@ -59,11 +86,6 @@ struct player_info : public card_info
     uid = generate_uid();
     traits.emplace_back(unit_traits::player);
   }
-  int mana;
-  int starting_mana;
-
-  std::vector<card_info> hand;
-  std::vector<std::vector<card_info>> lanes;
 
   template <typename Fn>
   void for_each_lane_card(Fn const& fn)
@@ -86,6 +108,10 @@ struct session_info
   int current_player{0};
   bool game_over{false};
   std::vector<player_info> players;
+  std::vector<card_info> picks;
+
+  using terrain_t = std::vector<std::vector<terrain_types>>;
+  terrain_t terrain;
 
   template <typename Fn>
   void for_each_lane_card(Fn const& fn)
@@ -97,11 +123,13 @@ struct session_info
   }
 
   void remove_lane_card(int uid);
+  void remove_dead_lane_card(std::function<void(card_info const&)> action);
   void remove_hand_card(int uid);
 
   bool is_front_of_lane(int uid) const noexcept;
 };
 
-using card_action_t = std::error_code(*)(session_info& session, card_info& actor, card_info& target);
+struct rules_engine;
+using card_action_t = std::error_code(*)(rules_engine& re, session_info& session, card_info& actor, card_info& target);
 
 } // namespace aura

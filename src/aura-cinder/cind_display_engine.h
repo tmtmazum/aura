@@ -15,6 +15,7 @@
 #include <optional>
 #include "display_constants.h"
 #include <aura-core/build.h>
+#include <aura-cinder/animation.h>
 
 #include <aura-core/session_info.h>
 
@@ -71,6 +72,7 @@ enum class cind_action_type : unsigned
   hovered_lane_card   = 0b000000100,
   hovered_end_turn    = 0b000001000,
   hovered_player      = 0b000010000,
+  hovered_pick_card   = 0b000100000,
   selected_lane       = 0b001000000,
   selected_hand_card  = 0b010000000,
   selected_lane_card  = 0b100000000,
@@ -135,6 +137,11 @@ public:
   
   //! ci::app::App interface
   void setup() override {
+    ci::app::addAssetDirectory(LR"(F:\cpp-projects\aura\assets\)");  
+    card_info in{};
+    //in.name = L"Militia";
+    //hand_card_texture(in);
+
     m_logic_thread = std::thread{[this]
     {
       start_game_session(m_ruleset, m_rules_engine, *this);
@@ -217,15 +224,35 @@ private:
 
   enum class selection : int { passive, hovered, selected };
 
-  void display_hand_card(card_info const& card, ci::Rectf const& rect, selection sel, bool is_current_player);
+  ci::gl::Texture2dRef choose_texture(terrain_types t) noexcept;
 
-  void display_lane_card(card_info const& info, ci::Rectf const& bounds, selection s);
+  void display_terrain();
+
+  void display_hand_card(card_info const& card, ci::Rectf const& rect, selection sel, bool is_current_player) const;
+
+  void display_lane_card(card_info const& info, ci::Rectf const& bounds, selection s) const;
 
   void display_lane_marker(int i, ci::Rectf const&);
 
-  void display_text(std::string const& text, ci::Rectf const&, ci::ColorAf const& , bool) const;
+  void display_text(std::string const& text, ci::Rectf const&, ci::ColorAf const& , float point_size, bool) const;
 
-  void cind_display_engine::display_hovered_description() const;
+  void display_hovered_card() const;
+  void display_hovered_description() const;
+
+  void display_picks();
+
+  void display_background() const;
+  void cind_display_engine::display_mouse();
+
+  void add_animation(static_animation anim) noexcept;
+  bool cind_display_engine::display_update_animation(static_animation const&);
+  void cind_display_engine::display_animations();
+
+  ci::gl::Texture2dRef hand_card_texture(card_info const&) const;
+  ci::gl::Texture2dRef lane_card_texture(card_info const&) const;
+  ci::gl::Texture2dRef tile_card_texture(card_info const&) const;
+  ci::gl::Texture2dRef hovered_card_texture(card_info const&) const;
+  ci::gl::Texture2dRef get_texture(std::wstring const& name) const;
 
 private:
   display_constants m_constants;
@@ -236,23 +263,21 @@ private:
 
   std::shared_ptr<session_info> m_session_info;
 
-  std::mutex m_mutex;
+  mutable std::mutex m_mutex;
 
   std::thread m_logic_thread;
 
   cind_action m_ui_action;
 
   //! Full description of the card currently hovered over
-  std::string m_hovered_description;
+  mutable std::string m_hovered_description;
+  card_info const* m_hovered_card{};
+  ci::gl::Texture2dRef m_mouse_texture{};
 
-  //std::optional<int> m_hovered;
+  std::vector<static_animation> m_active_animations;
+  std::chrono::steady_clock::time_point m_last_frame_time;
 
-  //std::optional<int> m_hovered_lane;
-
-  //! True if the hovered card is in hand
-  //bool m_in_hand{false};
-
-  //std::optional<int> m_selected;
+  mutable std::unordered_map<std::wstring, ci::gl::Texture2dRef> m_textures;
 
   //! If a card is selected, this vector stores all other cards that can be targetted
   std::vector<int> m_can_be_targetted;

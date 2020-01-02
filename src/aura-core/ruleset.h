@@ -1,6 +1,7 @@
 #pragma once
 
 #include <aura-core/card_preset.h>
+#include <aura-core/card_preset_definitions.h>
 
 namespace aura
 {
@@ -16,16 +17,27 @@ struct ruleset
 	game_mode mode{game_mode::PvP};
   int num_lanes{4};
   int num_players{2};
-  int challenger_starting_health{5};
-  int defender_starting_health{5};
+  int max_lane_height{4}; //!< max # of units in lane
+  int challenger_starting_health{10};
+  int defender_starting_health{10};
 
-  int challenger_starting_mana{1};
-  int defender_starting_mana{1};
+  int challenger_starting_mana{5};
+  int defender_starting_mana{5};
+
+  int max_starting_mana{20};
 
   int mana_natural_increment{1};
 
-  int challenger_starting_cards{4};
-  int defender_starting_cards{4};
+  int challenger_starting_cards{2};
+  int defender_starting_cards{1};
+
+  bool stagger_turns{true};
+
+  //! Whether or not unused mana is moved forward to the next turn
+  bool accumulate_mana{true};
+
+  //! Allow hero special powers in the game
+  bool enable_hero_specials{true};
 
   //! Places a limit on what level cards can 
   //! be draw on a turn by multipler
@@ -40,10 +52,18 @@ struct ruleset
 
   //! Defender (2nd player) starts off with n [0] fortifications
   //! This is to balance out the 1st player advantage
-  int defender_starts_with_n_forts{3};
+  int defender_starts_with_n_forts{0};
 
-  mutable deck challenger_deck = make_standard_deck();
+  int num_draws_per_turn{1};
+  int num_pick_choices_multiplier{4};
+
+  mutable deck challenger_deck = make_standard_deck();// make_standard_deck();
   mutable deck defender_deck = make_standard_deck();
+
+  int preferred_terrain_health_bonus{1};
+  int preferred_terrain_strength_bonus{1};
+
+  bool use_draft_deck{true};
 };
 
 } // namespace aura

@@ -1,6 +1,7 @@
 #include <aura-core/rules_engine.h>
 #include <aura-core/session_info.h>
 #include <aura-core/ruleset.h>
+#include <aura-core/terrain_types.h>
 #include <unordered_map>
 
 namespace aura
@@ -13,7 +14,7 @@ public:
 
   bool is_game_over() const noexcept override { return m_session_info.game_over; }
 
-  session_info get_session_info() const { return m_session_info; }
+  session_info get_session_info() const;
 
   std::vector<int> get_target_list(int uid) const;
 
@@ -24,16 +25,27 @@ public:
 
   std::wstring describe(unit_traits trait) const noexcept override;
 
+  card_info to_card_info(card_preset const& preset, int cid) override;
+
+  std::error_code trigger_pick_action(int num_picks, int num_choices) override;
+
 private:
   card_info* find_actor(int uid);
   card_info* find_target(int uid);
 
-  card_info to_card_info(card_preset const& preset, int cid);
+  void add_specials(player_info& player);
+
   card_info generate_card(ruleset const& r, deck& d, int turn = 1);
+
+  terrain_t generate_terrain();
+
+  void apply_terrain_modifiers(int cur_player, int lane_num, int tile_num, card_info& card) const;
+  void apply_all_terrain_modifiers(session_info& sesh) const;
 
 private:
   session_info m_session_info;
   ruleset m_rules;
+  bool end_of_turn{false};
 
   std::unordered_map<int, card_action_t> m_primary_actions;
   std::unordered_map<int, card_action_t> m_deploy_actions;

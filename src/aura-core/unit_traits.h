@@ -12,6 +12,7 @@ enum class unit_traits : int
   item,
   hero_power,
 
+  damage_trap,
   twice,
   thrice,
 	assassin,		//!< can attack upon placement without rest

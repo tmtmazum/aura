@@ -38,6 +38,25 @@ void session_info::remove_lane_card(int uid)
   lane_ptr->erase(card_it);
 }
 
+void session_info::remove_dead_lane_card(std::function<void(card_info const&)> action)
+{
+  for (auto& player : players)
+  {
+    for (auto& lane : player.lanes)
+    {
+      lane.erase(std::remove_if(begin(lane), end(lane), [&](auto const& c)
+      {
+        auto const cond = (c.effective_health() <= 0);
+        if (cond)
+        {
+          action(c);
+        }
+        return cond;
+      }), end(lane));
+    }
+  }
+}
+
 void session_info::remove_hand_card(int uid)
 {
   using hand_t = std::vector<card_info>;

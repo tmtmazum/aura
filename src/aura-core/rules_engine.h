@@ -42,6 +42,10 @@ public:
   //! Commit a player action
   virtual std::error_code commit_action(player_action const&) = 0;
 
+  virtual card_info to_card_info(card_preset const& preset, int cid) = 0;
+
+  virtual std::error_code trigger_pick_action(int num_picks, int num_choices = 0) = 0;
+
   virtual std::wstring describe(unit_traits trait) const noexcept = 0;
 };
 

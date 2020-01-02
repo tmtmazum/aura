@@ -10,6 +10,7 @@ enum class action_type : int
   forfeit,
   primary_action, //!< attack or heal
   deploy, //!< place a card on the board
+  pick,
   no_action, //!<
 };
 
@@ -19,6 +20,12 @@ struct player_action
   int target1{};
   int target2{};
 };
+
+//! Player picks a card to go to their hand
+inline player_action make_pick_action(int card)
+{
+  return player_action{action_type::pick, card, card};
+}
 
 inline player_action make_primary_action(int card_from, int card_to)
 {

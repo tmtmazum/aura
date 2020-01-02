@@ -86,7 +86,7 @@ void print_board_quick(session_info const& info)
     
     for (auto const& card : p.hand)
     {
-      AURA_PRINT(L"[%d %-.10ls (%d/%d) <u%d>]\n", card.cost, card.name.c_str(), card.strength, card.health, card.uid);
+      AURA_PRINT(L"[%d %-.10ls (%d/%d) <u%d>]\n", card.cost, card.name.c_str(), card.effective_strength(), card.effective_health(), card.uid);
     }
     AURA_PRINT(L"\nCards in Play:- \n");
     for (int j = 0; j < p.lanes.size(); ++j)
@@ -95,7 +95,7 @@ void print_board_quick(session_info const& info)
       auto const& lane = p.lanes[j];
       for (auto const& card : lane)
       {
-        AURA_PRINT(L"[%d %.10ls (%d/%d) <u%d>] ", card.cost, card.name.c_str(), card.strength, card.health, card.uid);
+        AURA_PRINT(L"[%d %.10ls (%d/%d) <u%d>] ", card.cost, card.name.c_str(), card.effective_strength(), card.effective_health(), card.uid);
       }
       AURA_PRINT(L"\n");
     }
@@ -121,8 +121,8 @@ std::wstring refit(std::wstring_view view, size_t size)
 void print_board_card(card_info const& card)
 {
   AURA_PRINT(L"[<u%d> %ls %lc(%d/%d)]", card.uid, refit(card.name, 9).c_str(),
-             card.is_resting() && card.strength ? L'R' : ' ', card.strength,
-             card.health);
+             card.is_resting() && card.strength ? L'R' : ' ', card.effective_strength(),
+             card.effective_health());
 }
 
 void print_board_player(player_info const& p, int i)
