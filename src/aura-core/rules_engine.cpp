@@ -27,8 +27,8 @@ std::error_code make_error_code(rules_error e) noexcept
   return std::error_code{static_cast<int>(e), cat};
 }
 
-std::error_code start_game_session(ruleset const& rules, rules_engine& engine, display_engine& display)
-{
+std::error_code start_game_session(ruleset const& rules, rules_engine& engine,
+                                   display_engine& display) {
   display.clear_board();
   auto redraw = true;
   while(!engine.is_game_over())

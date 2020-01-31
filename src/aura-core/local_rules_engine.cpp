@@ -31,14 +31,17 @@ local_rules_engine::local_rules_engine(ruleset const& rs)
       player.lanes.emplace_back(v);
     }
     
-    for (int i = 0; i < m_rules.challenger_starting_cards; ++i)
+    if (!m_rules.use_draft_deck)
     {
-      player.hand.emplace_back(generate_card(rs, rs.challenger_deck));  
-    }
+      for (int i = 0; i < m_rules.challenger_starting_cards; ++i)
+      {
+        player.hand.emplace_back(generate_card(rs, rs.challenger_deck));  
+      }
 
-    for (auto i = 0; i < rs.challenger_starts_with_n_forts; ++i)
-    {
-      player.hand.emplace_back(to_card_info(presets[0], 0));
+      for (auto i = 0; i < rs.challenger_starts_with_n_forts; ++i)
+      {
+        player.hand.emplace_back(to_card_info(presets[0], 0));
+      }
     }
     //player.hand.emplace_back(to_card_info(specials[0], specials[0].cid));
     add_specials(player);
@@ -58,22 +61,33 @@ local_rules_engine::local_rules_engine(ruleset const& rs)
       player.lanes.emplace_back(v);
     }
     
-    for (int i = 0; i < m_rules.defender_starting_cards; ++i)
+    if (!m_rules.use_draft_deck)
     {
-      player.hand.emplace_back(generate_card(rs, rs.defender_deck));
-    }
-
-    for (auto i = 0; i < rs.defender_starts_with_n_forts; ++i)
-    {
-      player.hand.emplace_back(to_card_info(presets[0], 0));
+      for (int i = 0; i < m_rules.defender_starting_cards; ++i)
+      {
+        player.hand.emplace_back(generate_card(rs, rs.defender_deck));
+      }
+      for (auto i = 0; i < rs.defender_starts_with_n_forts; ++i)
+      {
+        player.hand.emplace_back(to_card_info(presets[0], 0));
+      }
     }
 
     //player.hand.emplace_back(to_card_info(specials[0], specials[0].cid));
     add_specials(player);
     m_session_info.players.emplace_back(player);
   }
+
   m_session_info.terrain = generate_terrain();
-  trigger_pick_action(m_session_info.players[0].num_draws_per_turn, m_session_info.players[0].num_draws_per_turn);
+  if (m_rules.use_draft_deck)
+  {
+    ready_draft_picks();
+    trigger_draft_pick();
+  }
+  else
+  {
+    trigger_pick_action(m_session_info.players[0].num_draws_per_turn, m_session_info.players[0].num_draws_per_turn);
+  }
 }
 
 #ifdef LEGAL_ASSERT
@@ -214,18 +228,48 @@ std::wstring local_rules_engine::describe(unit_traits trait) const noexcept
 {
   switch (trait)
   {
-  case unit_traits::infantry: return L"infantry: traverses by land";
   case unit_traits::aerial:  return L"aerial: traverses by air";
   case unit_traits::structure: return L"structure: good for providing cover and bonuses";
-  case unit_traits::player: return L"player: player champion";
   case unit_traits::item: return L"item: can be applied to card on board";
   case unit_traits::twice: return L"can act twice per turn";
   case unit_traits::thrice: return L"can act three times per turn";
-  case unit_traits::assassin: return L"assassin: can attack same turn as deployment without rest";
-  case unit_traits::long_range: return L"long-range: can target any enemy unit (regardless of lane obstructions)";
-  case unit_traits::healer: return L"healer: can heal friendly units";
+  case unit_traits::assassin: return L"assassin: can attack same turn as deployment";
+  case unit_traits::long_range: return L"can attack from range (skipping lane obstructions)";
+  case unit_traits::healer: return L"heals friendly units";
+  case unit_traits::infantry: [[fallthrough]];
+  case unit_traits::player: [[fallthrough]];
+  default:
+    return L"";
   }
-  return L"unknown";
+  return L"";
+}
+
+std::error_code local_rules_engine::ready_draft_picks()
+{
+  if (m_starting_drafts)
+  {
+    auto const num_to_draft = m_rules.challenger_starting_cards + m_rules.defender_starting_cards;
+    
+    for (int i = 0; i < num_to_draft; ++i)
+    {
+      m_draft_choices.emplace_back(generate_card(m_rules, m_rules.challenger_deck));
+    }
+    return {};
+  }
+  return {};
+}
+
+std::error_code local_rules_engine::trigger_draft_pick()
+{
+  auto& cur_player = m_session_info.players[m_session_info.current_player];
+  if (m_starting_drafts)
+  {
+    m_session_info.picks.clear();
+    m_session_info.picks = m_draft_choices;
+    cur_player.picks_available = 1;
+  }
+
+  return {};
 }
 
 std::error_code local_rules_engine::trigger_pick_action(int num_picks, int num_choices)
@@ -379,6 +423,48 @@ std::error_code local_rules_engine::commit_action(player_action const& action)
   case action_type::pick:
   {
     auto const card_picked_uid = action.target1;
+
+    if (m_starting_drafts)
+    {
+      auto const it = std::find_if(begin(m_draft_choices), end(m_draft_choices), 
+        [&](auto const& card)
+      {
+        return card.uid == card_picked_uid;  
+      });
+
+      LEGAL_ASSERT(it != m_draft_choices.end(), L"Couldn't find picked card in drafts");
+
+      auto& player = m_session_info.players[m_session_info.current_player];
+      player.hand.emplace_back(*it);
+
+      m_draft_choices.erase(it);
+
+      --player.picks_available;
+
+      auto const p1_done = [&]()
+      {
+        return m_session_info.players[0].hand.size() >= m_rules.challenger_starting_cards + 2;
+      }();
+      auto const p2_done = [&]()
+      {
+        return m_session_info.players[1].hand.size() >= m_rules.defender_starting_cards + 2;
+      }();
+
+      if (p1_done && p2_done)
+      {
+        m_starting_drafts = false;
+        player.picks_available = 0;
+        m_session_info.picks.clear();
+        m_session_info.current_player = !m_session_info.current_player;
+      }
+      else
+      {
+        trigger_draft_pick();
+        m_session_info.current_player = !m_session_info.current_player;
+      }
+
+      return {};
+    }
 
     auto const it = std::find_if(begin(m_session_info.picks), end(m_session_info.picks), 
       [&](auto const& card)

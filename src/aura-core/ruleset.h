@@ -21,17 +21,17 @@ struct ruleset
   int challenger_starting_health{10};
   int defender_starting_health{10};
 
-  int challenger_starting_mana{5};
-  int defender_starting_mana{5};
+  int challenger_starting_mana{1};
+  int defender_starting_mana{1};
 
   int max_starting_mana{20};
 
   int mana_natural_increment{1};
 
-  int challenger_starting_cards{2};
-  int defender_starting_cards{1};
+  int challenger_starting_cards{3};
+  int defender_starting_cards{2};
 
-  bool stagger_turns{true};
+  bool stagger_turns{false};
 
   //! Whether or not unused mana is moved forward to the next turn
   bool accumulate_mana{true};
@@ -64,6 +64,7 @@ struct ruleset
   int preferred_terrain_strength_bonus{1};
 
   bool use_draft_deck{true};
+  int num_draft_choices{5}; //!< # of cards available at any time to draft from
 };
 
 } // namespace aura

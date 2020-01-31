@@ -22,7 +22,6 @@ enum class vertical_alignment_t
   center
 };
 
-
 //! Convenience class for displaying grid-based items
 struct grid
 {

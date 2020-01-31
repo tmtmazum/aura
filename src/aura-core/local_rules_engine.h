@@ -28,6 +28,8 @@ public:
   card_info to_card_info(card_preset const& preset, int cid) override;
 
   std::error_code trigger_pick_action(int num_picks, int num_choices) override;
+  std::error_code ready_draft_picks();
+  std::error_code trigger_draft_pick();
 
 private:
   card_info* find_actor(int uid);
@@ -50,6 +52,9 @@ private:
   std::unordered_map<int, card_action_t> m_primary_actions;
   std::unordered_map<int, card_action_t> m_deploy_actions;
   std::unordered_map<int, card_action_t> m_death_actions;
+
+  std::vector<card_info> m_draft_choices;
+  bool                   m_starting_drafts{true};
 
   //using primary_action_t = std::function<std::error_code(card_info& actor, card_info& target)>;
   // Card uid -> primary action

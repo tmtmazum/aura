@@ -409,7 +409,7 @@ std::vector<card_preset> const presets = {
 //card_preset{ <name>,            <cost>, <strength>, <health>, <energy>, {<traits>}, primary, on_deploy, on_death}
 
   // Level 0 Cards
-  card_preset{L"Small Fortification", L"", 0, 0, 1, 1, {ut::structure}, {}}, // DON'T MOVE THIS
+  card_preset{L"Barricade", L"", 0, 0, 1, 1, {ut::structure}, {}}, // DON'T MOVE THIS
   card_preset{L"Spike Trap", L"attacker concedes 1 damage", 0, 0, 1, 1, {ut::structure, ut::damage_trap}, {}},
 
   // Level 1 Cards - Structure
@@ -417,7 +417,7 @@ std::vector<card_preset> const presets = {
 
   // Level 1 Cards - Infantry
   card_preset{L"Militia", L"", 1, 1, 1, 1, {ut::infantry}, {tt::plains}, generic_damage_dealer()},
-  card_preset{L"Hound", L"can attack twice per turn\n drops loot: [0] Animal Meat", 1, 1, 1, 2, {ut::infantry, ut::twice}, {tt::forests}, generic_damage_dealer(), nullptr, drop_loot_animal_meat()},
+  card_preset{L"Hound", L"can attack twice per turn; drops loot: Animal Meat", 1, 1, 1, 2, {ut::infantry, ut::twice}, {tt::forests}, generic_damage_dealer(), nullptr, drop_loot_animal_meat()},
   card_preset{L"Thief", L"", 1, 1, 1, 1, {ut::infantry, ut::assassin}, {tt::forests}, generic_damage_dealer(), nullptr, drop_loot_gold_coin()},
   card_preset{L"Herbalist Healer", L"", 1, -1, 1, 2, {ut::infantry, ut::twice, ut::healer}, {}, generic_healer(), drop_loot_healing_herb()},
   card_preset{L"Bard", L"can arouse units, allowing them to act again if resting", 1, 0, 1, 2, {ut::infantry}, {}, generic_bard()},
