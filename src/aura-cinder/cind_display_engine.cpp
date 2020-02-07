@@ -924,7 +924,7 @@ void cind_display_engine::display_card_full(card_info const& card) const
   {
     ci::Rectf sub_rect{x2 - icon_w, cur_y, x2, cur_y + icon_h};
     ci::gl::draw(strength_texture, sub_rect);
-    auto const raw_strength = std::to_string(std::abs(card.strength));
+    auto const raw_strength = std::to_string(std::abs(card.effective_strength()));
     auto const str = card.starting_energy > 1 ? raw_strength + "x" + std::to_string(card.starting_energy) : raw_strength;
     aura::draw_line(sub_rect, str);
 
@@ -1005,19 +1005,27 @@ void cind_display_engine::display_picks()
     return;
   }
 
-  auto [x1, x2] = std::minmax(0.0f, m_constants.window_width);
-  auto const y_start = (m_constants.window_height - m_constants.pick_modal_height) / 2;
-  auto [y1, y2] = std::minmax(y_start, y_start + m_constants.pick_modal_height);
-  ci::Rectf modal_area{x1, y1, x2, y2};
+  auto const modal_area = std::invoke([&]()
   {
-    ci::gl::ScopedColor col{0.1, 0.1, 0.1, 0.6};
-    ci::gl::drawSolidRect(modal_area);
-  }
+    ci::Rectf sub_area{};
 
+    auto wind = make_frame(ci::Rectf{0.0f, 0.0f, m_constants.window_width, m_constants.window_height});
+    wind.align_vertical(vertical_alignment_t::center);
+    wind.add_element(m_constants.window_width, m_constants.pick_modal_height, [&](auto const& rect)
+    {
+      ci::gl::ScopedColor col{0.1, 0.1, 0.1, 0.6};
+      ci::gl::drawSolidRect(rect);
+      sub_area = rect;
+    });
+    wind.arrange_horizontally();
+    return sub_area;
+  });
+
+  // Draw red-bordered turn indicator
   auto f = make_frame(modal_area);
   f.align_horizontal(horizontal_alignment_t::center);
   f.align_vertical(vertical_alignment_t::center);
-  f.add(500.0f, 100.0f, [&](auto const& rect)
+  f.add_element(500.0f, 100.0f, [&](auto const& rect)
   {
     auto& player = m_session_info->players[m_session_info->current_player];
     auto const num_draws = player.picks_available; //player.num_draws_per_turn - player.num_drawn_this_turn;
@@ -1037,7 +1045,7 @@ void cind_display_engine::display_picks()
 
   auto [grid_x, grid_y] = g.measure(m_session_info->picks.size(), 1);
 
-  f.add(grid_x, grid_y, [&](auto const& rect)
+  f.add_element(grid_x, grid_y, [&](auto const& rect)
   {
     g.bounds = rect;    
     g.arrange_horizontally(m_session_info->picks, [&](auto const& card, auto const& element)
@@ -1054,6 +1062,7 @@ void cind_display_engine::display_picks()
       ci::gl::ScopedModelMatrix mat{};
       ci::gl::translate(element.getX1(), element.getY1());
       ci::gl::scale(0.5f, 0.5f);
+
       display_card_full(card);
       //display_hand_card(card, element, hovered ? selection::hovered : selection::passive, true);
     });
@@ -1133,31 +1142,31 @@ void cind_display_engine::display_background() const
   }
 }
 
-void cind_display_engine::add_animation(static_animation anim) noexcept
-{
-  m_active_animations.emplace_back(std::move(anim));
-}
-
 void cind_display_engine::mouseDown(ci::app::MouseEvent event)
 {
   std::lock_guard lk{m_mutex};
 
   AURA_LOG(L"+ 0x%x", m_ui_action.type);
 
-  //if (event.isLeftDown())
-  //{
-  //  auto [x, y] = std::make_pair(getMousePos().x - getWindowPos().x, getMousePos().y - getWindowPos().y);
-
-  //  ci::Rectf r{static_cast<float>(x) - 100.0f, static_cast<float>(y) - 100.0f, x + 100.0f, y + 100.0f};
-  //  add_animation({r, L"Slash", std::chrono::milliseconds(400), 6});
-  //}
-
   auto const start_animation = [&]()
   {
     auto [x, y] = std::make_pair(getMousePos().x - getWindowPos().x, getMousePos().y - getWindowPos().y);
 
     ci::Rectf r{static_cast<float>(x) - 100.0f, static_cast<float>(y) - 100.0f, x + 100.0f, y + 100.0f};
-    add_animation({r, L"Slash", std::chrono::milliseconds(250), 6});
+    m_dynamic_animations.emplace_back(make_animation(std::chrono::milliseconds(250), [rect = r, this](auto const& info)
+    {
+      constexpr auto num_frames = 6;
+      auto const sprite_base = std::wstring{L"Slash"};
+        
+      auto const frame_no = static_cast<int>(info.ratio_elapsed * num_frames);
+
+      auto const sprite_name = sprite_base + std::to_wstring(frame_no) + L".png";
+      //AURA_LOG(L"Ratio elapsed: (%lld / %lld) %.02f, Frame: %d, Sprite: %ls", time_elapsed, total, ratio_elapsed, frame_no, sprite_name.c_str());
+      if (auto const t = get_texture(sprite_name))
+      {
+        ci::gl::draw(t, rect); 
+      }
+    }));
   };
 
   // Pick card
@@ -1273,62 +1282,36 @@ void cind_display_engine::display_terrain()
 void cind_display_engine::display_mouse()
 {
   showCursor();
-  //if (m_hovered_card)
-  //{
-  //  hideCursor();
-  //  ci::Rectf r{m_constants.mouse_x, m_constants.mouse_y, m_constants.mouse_x + 10.0f, m_constants.mouse_y + 20.0f};
-  //  ci::gl::draw(get_texture(L"mouse-pre-click.png"), r);
-  //}
-  //else if (m_mouse_texture)
-  //{
-  //  hideCursor();
-  //  ci::Rectf r{m_constants.mouse_x, m_constants.mouse_y, m_constants.mouse_x + 10.0f, m_constants.mouse_y + 20.0f};
-  //  ci::gl::draw(m_mouse_texture, r);
-  //}
-  //else
-  //{
-  //  showCursor();
-  //}
-}
-
-bool cind_display_engine::display_update_animation(static_animation const& anim)
-{
-  auto const now = std::chrono::steady_clock::now();
-
-  auto const time_elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(now - anim.time_triggered).count();
-  auto const total = std::chrono::duration_cast<std::chrono::nanoseconds>(anim.duration).count();
-
-  if (time_elapsed > total)
-  {
-    return true;
-  }
-
-  auto const ratio_elapsed = static_cast<float>(time_elapsed) / total;
-
-  auto const frame_no = static_cast<int>(ratio_elapsed * anim.num_frames);
-
-  auto const sprite_name = anim.sprite_base + std::to_wstring(frame_no) + L".png";
-  AURA_LOG(L"Ratio elapsed: (%lld / %lld) %.02f, Frame: %d, Sprite: %ls", time_elapsed, total, ratio_elapsed, frame_no, sprite_name.c_str());
-  if (auto const t = get_texture(sprite_name))
-  {
-    ci::gl::draw(t, anim.rect); 
-  }
-  return false;
 }
 
 void cind_display_engine::display_animations()
 {
-  std::vector<decltype(m_active_animations.begin())> erase_list;
-  for (auto it = m_active_animations.begin(); it != m_active_animations.end(); ++it)
+  std::vector<decltype(m_dynamic_animations.begin())> erase_list;
+  for (auto it = begin(m_dynamic_animations); it != end(m_dynamic_animations); ++it)
   {
-    if (display_update_animation(*it))
+    auto const now = std::chrono::steady_clock::now();
+    auto const time_elapsed = std::chrono::duration_cast<std::chrono::nanoseconds>(now - it->time_triggered);
+    
+    if (time_elapsed > it->total_duration)
     {
-      erase_list.emplace_back(it); 
+      erase_list.emplace_back(it);
+      break;
     }
+
+    anim_info in{
+      time_elapsed,
+      static_cast<float>(time_elapsed.count()) / it->total_duration.count(),
+      it->index++
+    };
+
+    AURA_LOG(L"Ratio elapsed: (%lld / %lld) %.02f, Index: %d", time_elapsed.count(), it->total_duration.count(), 
+      in.ratio_elapsed, in.render_index);
+    it->renderer(in);
   }
+
   for (auto const& e : erase_list)
   {
-    m_active_animations.erase(e);
+    m_dynamic_animations.erase(e);
   }
   m_last_frame_time = std::chrono::steady_clock::now();
 }

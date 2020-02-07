@@ -101,10 +101,6 @@ public:
 
   void cind_display_engine::display_mouse();
 
-  void add_animation(static_animation anim) noexcept;
-
-  bool cind_display_engine::display_update_animation(static_animation const&);
-
   void cind_display_engine::display_animations();
 
   ci::gl::Texture2dRef hand_card_texture(card_info const&) const;
@@ -146,7 +142,7 @@ private:
 
   ci::gl::Texture2dRef m_mouse_texture{};
 
-  std::vector<static_animation> m_active_animations;
+  std::vector<dynamic_animation> m_dynamic_animations;
 
   std::chrono::steady_clock::time_point m_last_frame_time;
 

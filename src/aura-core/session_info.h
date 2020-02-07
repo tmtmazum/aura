@@ -44,6 +44,10 @@ struct card_info
   //! Returns effective strength (including terrain bonuses)
   auto effective_strength() const noexcept
   {
+    if (strength < 0)
+    { // healer
+      return strength;
+    }
     return on_preferred_terrain ? strength + 1 : strength;
   }
 

@@ -55,6 +55,8 @@ struct grid
     vertical_alignment = va;
   }
 
+  //! Measure total width and height required to display 'num_horizontal' and
+  //! 'num_vertical' elements
   std::pair<float, float> measure(int num_horizontal, int num_vertical)
   {
     return std::pair{num_horizontal*(element_width + padding_x*2), num_vertical*(element_height + padding_y*2)};
@@ -187,13 +189,14 @@ struct frame
     max_padding_y = y;
   }
 
-  void add(float x, float y, eval_t ev)
+  void add_element(float x, float y, eval_t ev)
   {
     elements.emplace_back(element_info{x, y, std::move(ev)});
   }
 
   void set_stretch(bool b) { stretch = b; }
 
+  //! arrange added elements horizontally
   template <typename RectConsumer>
   void arrange_horizontally(RectConsumer const& cons)
   {
@@ -202,30 +205,7 @@ struct frame
         [](int val, auto const& el) { return val + el.width; });
   }
 
-  float aligned_x(float element_width, float padding_x)
-  {
-      auto const hor_space_needed = (element_width + (padding_x*2));
-      switch (horizontal_alignment)
-      {
-      case horizontal_alignment_t::left: return bounds.x1;
-      case horizontal_alignment_t::center: return bounds.x1 + ((bounds.getWidth() - hor_space_needed) / 2);
-      case horizontal_alignment_t::right: return bounds.x1 + (bounds.getWidth() - hor_space_needed);
-      }
-      return bounds.x1;
-  }
-
-  float aligned_y(float element_height, float padding_y)
-  {
-    auto const vert_space_needed = (element_height + (padding_y*2)); 
-    switch (vertical_alignment)
-    {
-    case vertical_alignment_t::top: return bounds.y1;
-    case vertical_alignment_t::center: return bounds.y1 + ((bounds.getHeight() - vert_space_needed) / 2);
-    case vertical_alignment_t::bottom: return bounds.y1 + (bounds.getHeight() - vert_space_needed);
-    }
-    return bounds.y1;
-  }
-
+  //! arrange added elements horizontally
   void arrange_horizontally()
   {
     auto const total_width_required = 
@@ -254,6 +234,7 @@ struct frame
     }
   }
 
+  //! arrange added elements vertically
   void arrange_vertically()
   {
     auto const total_height_required = 
@@ -281,6 +262,31 @@ struct frame
       cur_y += pad_y;
     }
   }
+
+private:
+  float aligned_x(float element_width, float padding_x)
+  {
+      auto const hor_space_needed = (element_width + (padding_x*2));
+      switch (horizontal_alignment)
+      {
+      case horizontal_alignment_t::left: return bounds.x1;
+      case horizontal_alignment_t::center: return bounds.x1 + ((bounds.getWidth() - hor_space_needed) / 2);
+      case horizontal_alignment_t::right: return bounds.x1 + (bounds.getWidth() - hor_space_needed);
+      }
+      return bounds.x1;
+  }
+
+  float aligned_y(float element_height, float padding_y)
+  {
+    auto const vert_space_needed = (element_height + (padding_y*2)); 
+    switch (vertical_alignment)
+    {
+    case vertical_alignment_t::top: return bounds.y1;
+    case vertical_alignment_t::center: return bounds.y1 + ((bounds.getHeight() - vert_space_needed) / 2);
+    case vertical_alignment_t::bottom: return bounds.y1 + (bounds.getHeight() - vert_space_needed);
+    }
+    return bounds.y1;
+  }
 };
 
 auto make_frame(ci::Rectf const& r)
@@ -289,6 +295,15 @@ auto make_frame(ci::Rectf const& r)
   f.bounds = r;
   f.bounds.canonicalize();
   return f;
+}
+
+auto arrange_one(horizontal_alignment_t h, vertical_alignment_t v, float width, float height, ci::Rectf const& container)
+{
+  frame f{};
+  f.bounds = container;
+  f.bounds.canonicalize();
+  f.align_horizontal(h);
+  f.align_vertical(v);
 }
 
 } // namespace aura
