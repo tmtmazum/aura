@@ -187,11 +187,6 @@ void cind_display_engine::display_hand_card(card_info const& card, ci::Rectf con
   }
 }
 
-void cind_display_engine::display_hand_alt()
-{
-
-}
-
 auto terrain_to_color(terrain_types t)
 {
   constexpr auto alpha = 0.5f;
