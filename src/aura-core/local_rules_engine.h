@@ -14,7 +14,7 @@ public:
 
   bool is_game_over() const noexcept override { return m_session_info.game_over; }
 
-  session_info get_session_info() const;
+  session_info const& get_session_info() const;
 
   std::vector<int> get_target_list(int uid) const;
 

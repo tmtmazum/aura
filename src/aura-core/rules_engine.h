@@ -35,7 +35,7 @@ class rules_engine
 public:
   virtual bool is_game_over() const noexcept = 0;
 
-  virtual session_info get_session_info() const = 0;
+  virtual session_info const& get_session_info() const = 0;
 
   virtual std::vector<int> get_target_list(int uid) const = 0;
 

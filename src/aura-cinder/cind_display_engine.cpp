@@ -1161,7 +1161,6 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
       auto const frame_no = static_cast<int>(info.ratio_elapsed * num_frames);
 
       auto const sprite_name = sprite_base + std::to_wstring(frame_no) + L".png";
-      //AURA_LOG(L"Ratio elapsed: (%lld / %lld) %.02f, Frame: %d, Sprite: %ls", time_elapsed, total, ratio_elapsed, frame_no, sprite_name.c_str());
       if (auto const t = get_texture(sprite_name))
       {
         ci::gl::draw(t, rect); 
@@ -1355,6 +1354,7 @@ void cind_display_engine::draw()
 
   assert(sesh->current_player == 0 || sesh->current_player == 1);
   //display_background();
+
   display_terrain();
   display_player_top(sesh->players[0], sesh->current_player == 0);
   display_player_bottom(sesh->players[1], sesh->current_player == 1);

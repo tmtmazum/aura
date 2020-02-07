@@ -344,12 +344,9 @@ void local_rules_engine::apply_terrain_modifiers(int cur_player, int lane_num, i
 #endif
 }
 
-session_info local_rules_engine::get_session_info() const
+session_info const& local_rules_engine::get_session_info() const
 { 
   return m_session_info;
-  //auto copy = m_session_info;
-  //apply_all_terrain_modifiers(copy);
-  //return copy;
 }
 
 void local_rules_engine::apply_all_terrain_modifiers(session_info& sesh) const
