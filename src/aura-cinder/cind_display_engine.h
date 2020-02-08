@@ -67,7 +67,7 @@ public:
     bool is_current_player);
 
   void display_hand2(
-    std::vector<card_info> const &hand,
+    player_info const& player,
     bool top,
     bool is_current_player);
 

@@ -1,9 +1,11 @@
 #pragma once
 
+#include <cinder/Rect.h>
+
 #include <functional>
 #include <algorithm>
 #include <numeric>
-#include <cinder/Rect.h>
+#include <vector>
 
 namespace aura
 {
@@ -38,12 +40,16 @@ struct grid
   float element_height{0.0f};
   horizontal_alignment_t  horizontal_alignment = horizontal_alignment_t::left;
   vertical_alignment_t    vertical_alignment = vertical_alignment_t::top;
+  bool reverse = false; //!< whether the array elements should be iterated in reverse order
 
   void set_padding(float x, float y)
   {
     padding_x = x;
     padding_y = y;
   }
+
+  //! Whether the elements in the array should be iterated in reverse order
+  void set_reverse(bool b) { reverse = b; }
 
   void set_element_size(float x, float y)
   {
@@ -68,6 +74,7 @@ struct grid
     return std::pair{num_horizontal*(element_width + padding_x*2), num_vertical*(element_height + padding_y*2)};
   }
 
+  //! Arranges the elements top->down, left->right with the alignments and paddings specified
   template <typename RectConsumer>
   void arrange(int num_horizontal, int num_vertical, RectConsumer const& cn) const
   {
@@ -121,10 +128,10 @@ struct grid
     using std::begin;
     using std::end;
 
-    auto it = begin(c);
+    auto [it, it_reverse] = std::make_pair(begin(c), rbegin(c));
     arrange(c.size(), 1, [&](auto const& rect)
     {
-      cons(*it++, rect);
+      cons(reverse ? *it_reverse++ : *it++, rect);
     });
   }
 
@@ -134,10 +141,10 @@ struct grid
     using std::begin;
     using std::end;
 
-    auto it = begin(c);
+    auto [it, it_reverse] = std::make_pair(begin(c), rbegin(c));
     arrange(1, c.size(), [&](auto const& rect)
     {
-      cons(*it++, rect);
+      cons(reverse ? *it_reverse++ : *it++, rect);
     });
   }
 };

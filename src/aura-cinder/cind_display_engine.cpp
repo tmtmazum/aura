@@ -459,7 +459,7 @@ void cind_display_engine::display_lane_card(card_info const& card, ci::Rectf con
 }
 
 void cind_display_engine::display_hand2(
-  std::vector<card_info> const &hand,
+  player_info const& player,
   bool top,
   bool is_current_player)
 {
@@ -467,17 +467,11 @@ void cind_display_engine::display_hand2(
 
   auto win_frame = make_frame(ci::Rectf{0.0f, 0.0f, m_constants.window_width, m_constants.window_height});
   win_frame.align_vertical(top ? vertical_alignment_t::top : vertical_alignment_t::bottom);
+  win_frame.align_horizontal(horizontal_alignment_t::center);
   win_frame.set_stretch(false);
  
   win_frame.add_element(m_constants.window_width, hand_height, [&](auto const& hand_area)
   {
-    {
-#if AURA_DEBUG
-      ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
-      ci::gl::drawStrokedRect(hand_area);
-#endif
-    }
-
     auto const& c = m_constants;
     auto const scale_factor = std::min(c.card_hand_width / c.highlight_descr_width, c.card_hand_height / c.highlight_descr_height);
 
@@ -487,7 +481,7 @@ void cind_display_engine::display_hand2(
       f.set_padding(m_constants.hand_horizontal_padding, m_constants.hand_vertical_padding);
       f.set_element_size(m_constants.highlight_descr_width * scale_factor, m_constants.highlight_descr_height * scale_factor);
 
-      f.arrange_horizontally(hand, [&](auto const& item, ci::Rectf const& rect)
+      f.arrange_horizontally(player.hand, [&](auto const& item, ci::Rectf const& rect)
       {
         ci::gl::ScopedModelMatrix mat{};
         ci::gl::translate(rect.x1, rect.y1);
@@ -537,22 +531,150 @@ void cind_display_engine::display_hand2(
         }
       });
   });
-#if AURA_DEBUG
-  win_frame.add_element(m_constants.window_width, hand_height, [&](auto const& hand_area)
+
+  //! Find the left corner co-ordinate to display a rectangle of 'width' at the center
+  auto const lcenter_for = [&](auto const width)
+  {
+    return (m_constants.window_width - width) / 2;
+  };
+
+  // health bar
+  win_frame.add_element(m_constants.window_width, m_constants.board_lane_marker_height, [&](auto const& hand_area)
   {
     {
-      ci::gl::ScopedColor col{0.0f, 0.0f, 1.0f, 1.0f};
-      ci::gl::drawStrokedRect(hand_area);
-    }
-  });
-  win_frame.add_element(m_constants.window_width, hand_height, [&](auto const& hand_area)
-  {
+      auto const max_health_bar_width = 50.0f * player.starting_health;
+      auto const actual_health_bar_width = ((float)player.health / player.starting_health) * max_health_bar_width;
+      auto const lcenter = lcenter_for(actual_health_bar_width);
+
+      auto const [x1, x2] = std::minmax(lcenter, lcenter + actual_health_bar_width);
+      auto const [x3, x4] = std::minmax(lcenter_for(max_health_bar_width), lcenter_for(max_health_bar_width) + max_health_bar_width);
+
+      auto const [y1, y2] = std::minmax(hand_area.y1, hand_area.y2);
+      //auto const [y1, y2] = std::minmax(cur_pos_y, cur_pos_y + (sign * m_constants.board_lane_marker_height));
+
+      ci::Rectf reduced_rect{x1, y1, x2, y2};
+      ci::Rectf max_rect{x3, y1, x4, y2};
+      //ci::Rectf rect{cur_pos_x + (remaining_width / 2), y1,  cur_pos_x + (remaining_width / 2) + 500, y2};
+
+      {
+        ci::gl::ScopedColor col{0.1, 0.1, 0.1, 1.0};
+        ci::gl::drawSolidRoundedRect(max_rect, 10, 10);
+      }
+
+      if (reduced_rect.contains({m_constants.mouse_x, m_constants.mouse_y}))
+      {
+        ci::gl::ScopedColor col{0.0, 0.5, 0.0, 1.0};
+        ci::gl::drawSolidRoundedRect(reduced_rect, 10, 10);
+
+        std::lock_guard lk{m_mutex};
+        m_ui_action.add(uiact::hovered_player, player.uid);
+      }
+      else
+      {
+        ci::gl::ScopedColor col{0.0, 0.4, 0.0, 1.0};
+        ci::gl::drawSolidRoundedRect(reduced_rect, 10, 10);
+      }
+
+      auto const str = stringprintf<64>("Player | Health: %d / %d | Mana: %d", player.health, player.starting_health, player.mana);
+      display_text(str, max_rect, {0.9, 0.9, 0.9, 1.0}, max_rect.getHeight(), true);
+    } });
+
+    win_frame.add_element(m_constants.window_width, m_constants.board_lane_marker_height + 2*m_constants.board_vertical_padding, [&](auto const& hand_area)
     {
-      ci::gl::ScopedColor col{0.0f, 1.0f, 0.0f, 1.0f};
-      ci::gl::drawStrokedRect(hand_area);
-    }
+      auto const [x1, x2] = std::minmax(lcenter_for(120), lcenter_for(120) + 120);
+      auto const top_sign = top ? 1.0f : -1.0f;
+      auto const [y1, y2] = std::minmax(hand_area.y1 + m_constants.board_vertical_padding, hand_area.y1 + (top_sign * m_constants.board_lane_marker_height));
+
+      ci::Rectf end_turn_rect{x1, y1,  x2, y2};
+
+      if (is_current_player)
+      {
+        if (end_turn_rect.contains({m_constants.mouse_x, m_constants.mouse_y}))
+        {
+          ci::gl::ScopedColor col{1.0, 0.0, 0.0, 1.0};
+          ci::gl::drawSolidRoundedRect(end_turn_rect, 10, 10);
+          std::lock_guard lk{m_mutex};
+          m_ui_action.add(uiact::hovered_end_turn, 0);
+        }
+        else
+        {
+          ci::gl::ScopedColor col{0.4, 0.4, 0.4, 1.0};
+          ci::gl::drawSolidRoundedRect(end_turn_rect, 10, 10);
+        }
+        display_text(std::string{"END TURN"}, end_turn_rect, {0.9, 0.9, 0.9, 1.0}, end_turn_rect.getHeight(), true);
+      }
+    });
+    
+  // lanes
+  auto const lane_height = (m_constants.card_board_height * 4) + (m_constants.board_vertical_padding * 8);
+  auto const lane_width = (m_constants.card_board_width * 4) + (m_constants.board_horizontal_padding * 8);
+
+  win_frame.add_element(lane_width, lane_height, [&](auto const& hand_area)
+  {
+    auto g = make_grid(hand_area);
+    g.set_padding(m_constants.board_horizontal_padding, 0.0f);
+    g.set_element_size(m_constants.card_board_width, hand_area.getHeight());
+    g.align_vertical(top ? vertical_alignment_t::top : vertical_alignment_t::bottom);
+
+    int lane_no = 0;
+    g.arrange_horizontally(m_session_info->terrain, [&](auto const& item, auto const& rect)
+    {
+      auto g2 = make_grid(rect);
+      g2.set_element_size(m_constants.card_board_width, m_constants.card_board_height);
+      g2.set_padding(0.0f, m_constants.board_vertical_padding);
+      g2.align_vertical(top ? vertical_alignment_t::top : vertical_alignment_t::bottom);
+      g2.set_reverse(top);
+
+      int lane_index = 0;
+      g2.arrange_vertically(item, [&](auto const& tile_terrain, auto const& sub_rect)
+      {
+        auto const texture_name = std::invoke([&]
+        {
+          switch (tile_terrain)
+          {
+          case terrain_types::plains:     return L"tile-plains.png";
+          case terrain_types::riverlands: return L"tile-riverlands.png";
+          case terrain_types::mountains:  return L"tile-mountains.png";
+          case terrain_types::forests:    return L"tile-forests.png";
+          default:                        return L"tile-placeholder.png";
+          }
+        });
+        ci::gl::draw(get_texture(texture_name), sub_rect);
+
+        auto const hovered = sub_rect.contains({m_constants.mouse_x, m_constants.mouse_y});
+        if (hovered)
+        {
+          std::lock_guard lk{m_mutex};
+          m_hovered_description = to_string(tile_terrain);
+          auto const normalized_lane_index = top ? lane_index : m_ruleset.max_lane_height - lane_index - 1;
+          if (is_current_player && m_ui_action.is(cind_action_type::selected_hand_card) && player.lanes[lane_no].size() == normalized_lane_index)
+          {
+            ci::gl::draw(get_texture(L"icon-move.png"), sub_rect);
+            m_ui_action.add(uiact::hovered_lane, normalized_lane_index);
+          }
+        }
+        lane_index++;
+      });
+      lane_no++;
+    });
+
+    g.arrange_horizontally(player.lanes, [&](auto const& item, auto const& rect)
+    {
+      auto g2 = make_grid(rect);
+      g2.set_element_size(m_constants.card_board_width, m_constants.card_board_height);
+      g2.set_padding(0.0f, m_constants.board_vertical_padding);
+      g2.align_vertical(top ? vertical_alignment_t::top : vertical_alignment_t::bottom);
+
+      g2.arrange_vertically(item, [&](auto const& sub_item, auto const& sub_rect)
+      {
+        ci::gl::ScopedModelMatrix mat{};
+        ci::gl::translate(sub_rect.x1, sub_rect.y1);
+        //ci::gl::rotate(-3.14159f * 0.5f);
+        ci::gl::scale(0.2f, 0.2f);
+        display_card_full(sub_item);
+      });
+    });
   });
-#endif
   win_frame.arrange_vertically();
 }
 
@@ -855,7 +977,7 @@ void cind_display_engine::display_lanes(
 
 void cind_display_engine::display_player_top(player_info const& player, bool is_current)
 {
-  display_hand2(player.hand, true, is_current);
+  display_hand2(player, true, is_current);
 #if 0
   auto [cur_pos_x, cur_pos_y] = std::make_pair(0.0f, 0.0f);
   auto const hand_height = static_cast<float>(m_constants.card_hand_height + (2*m_constants.hand_vertical_padding));
@@ -869,7 +991,7 @@ void cind_display_engine::display_player_top(player_info const& player, bool is_
 
 void cind_display_engine::display_player_bottom(player_info const& player, bool is_current)
 {
-  display_hand2(player.hand, false, is_current);
+  display_hand2(player, false, is_current);
 #if 0
   auto [cur_pos_x, cur_pos_y] = std::make_pair(0.0f, 0.0f);
   auto const hand_height = static_cast<float>(m_constants.card_hand_height + (2*m_constants.hand_vertical_padding));
@@ -1464,7 +1586,7 @@ void cind_display_engine::draw()
   display_player_top(sesh->players[0], sesh->current_player == 0);
   display_player_bottom(sesh->players[1], sesh->current_player == 1);
 
-  //display_picks();
+  display_picks();
   {
     std::lock_guard lk{m_mutex};
     if (!m_hovered_description.empty())
