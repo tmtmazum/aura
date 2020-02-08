@@ -36,7 +36,7 @@ void draw_multiline(ci::Rectf const& rect, std::string const& text, bool center)
 
   auto const num_lines = [&]()
   {
-    if (text.size() < 17)
+    if (text.size() < 8)
     {
       return 1;
     }
@@ -51,7 +51,7 @@ void draw_multiline(ci::Rectf const& rect, std::string const& text, bool center)
     return 4;
   }();
 
-  box.font(ci::Font{"Cambria", (rect.getHeight() / num_lines) * 1.0f});
+  box.font(ci::Font{"Cambria", (rect.getHeight() / num_lines) * 0.8f});
   box.text(text);
   box.size(rect.getSize());
   box.color({0.0f, 0.0f, 0.0f, 1.0f});

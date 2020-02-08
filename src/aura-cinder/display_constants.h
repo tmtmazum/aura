@@ -16,8 +16,8 @@ struct display_constants
 
   float card_board_width = 120;
   float card_board_height = 60;
-  float card_hand_width = card_board_width;
-  float card_hand_height = card_board_height;
+  float card_hand_width = 240;
+  float card_hand_height = 120;
 
   float terrain_icon_width = std::min(card_board_width, card_board_height) * 0.5f;
   float terrain_icon_height = std::min(card_board_width, card_board_height) * 0.5f;

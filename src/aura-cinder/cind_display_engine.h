@@ -66,6 +66,12 @@ public:
     ci::Rectf const &bounds,
     bool is_current_player);
 
+  void display_hand2(
+    std::vector<card_info> const &hand,
+    bool top,
+    bool is_current_player);
+
+
   void display_lanes(player_info const& player,
                      ci::Rectf const& bounds,
                      bool is_current,
@@ -152,6 +158,9 @@ private:
   std::vector<int> m_can_be_targetted;
 
   std::promise<player_action> m_action;
+
+  std::unordered_map<int, float> ratios;
+  //float m_ratio{0.0f};
 };
 
 } // namespace aura

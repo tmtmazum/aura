@@ -458,6 +458,104 @@ void cind_display_engine::display_lane_card(card_info const& card, ci::Rectf con
   }
 }
 
+void cind_display_engine::display_hand2(
+  std::vector<card_info> const &hand,
+  bool top,
+  bool is_current_player)
+{
+  auto const hand_height = static_cast<float>(m_constants.card_hand_height + (2*m_constants.hand_vertical_padding));
+
+  auto win_frame = make_frame(ci::Rectf{0.0f, 0.0f, m_constants.window_width, m_constants.window_height});
+  win_frame.align_vertical(top ? vertical_alignment_t::top : vertical_alignment_t::bottom);
+  win_frame.set_stretch(false);
+ 
+  win_frame.add_element(m_constants.window_width, hand_height, [&](auto const& hand_area)
+  {
+    {
+#if AURA_DEBUG
+      ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
+      ci::gl::drawStrokedRect(hand_area);
+#endif
+    }
+
+    auto const& c = m_constants;
+    auto const scale_factor = std::min(c.card_hand_width / c.highlight_descr_width, c.card_hand_height / c.highlight_descr_height);
+
+      auto f = make_grid(hand_area);
+      f.align_horizontal(horizontal_alignment_t::center);
+      f.align_vertical(top ? vertical_alignment_t::top : vertical_alignment_t::bottom);
+      f.set_padding(m_constants.hand_horizontal_padding, m_constants.hand_vertical_padding);
+      f.set_element_size(m_constants.highlight_descr_width * scale_factor, m_constants.highlight_descr_height * scale_factor);
+
+      f.arrange_horizontally(hand, [&](auto const& item, ci::Rectf const& rect)
+      {
+        ci::gl::ScopedModelMatrix mat{};
+        ci::gl::translate(rect.x1, rect.y1);
+        ci::gl::scale(scale_factor, scale_factor);
+
+        if (is_current_player)
+        {
+          display_card_full(item);
+        }
+
+        auto [x1, x2] = std::minmax(0.0f, m_constants.highlight_descr_width);
+        auto [y1, y2] = std::minmax(0.0f, m_constants.highlight_descr_height);
+
+        ci::Rectf size_rect{x1, y1, x2, y2};
+        // draw hover highlight
+        auto const coord = ci::gl::windowToObjectCoord({m_constants.mouse_x, m_constants.mouse_y});
+
+        auto const hovered = size_rect.contains(coord);
+        auto const selected = m_ui_action.is(uiact::selected_hand_card) && m_ui_action.value(uiact::selected_hand_card) == item.uid;
+        auto const cur_mana = m_session_info->players[m_session_info->current_player].mana;
+        auto const passive = item.cost > cur_mana;
+        if (!is_current_player)
+        {
+          ci::gl::draw(get_texture(L"card-hidden.png"), size_rect);
+        }
+        else if (passive)
+        {
+          ci::gl::draw(get_texture(L"card-passive.png"), size_rect);
+        }
+        else if (selected)
+        {
+          ci::gl::draw(get_texture(L"card-selected.png"), size_rect);
+        }
+        else if (hovered)
+        {
+          ci::gl::draw(get_texture(L"card-highlight.png"), size_rect);
+        }
+
+        std::lock_guard lk{m_mutex};
+        if (hovered)
+        {
+          m_ui_action.add(uiact::hovered_hand_card, item.uid);
+          if (is_current_player)
+          {
+            m_hovered_card = &item;
+          }
+        }
+      });
+  });
+#if AURA_DEBUG
+  win_frame.add_element(m_constants.window_width, hand_height, [&](auto const& hand_area)
+  {
+    {
+      ci::gl::ScopedColor col{0.0f, 0.0f, 1.0f, 1.0f};
+      ci::gl::drawStrokedRect(hand_area);
+    }
+  });
+  win_frame.add_element(m_constants.window_width, hand_height, [&](auto const& hand_area)
+  {
+    {
+      ci::gl::ScopedColor col{0.0f, 1.0f, 0.0f, 1.0f};
+      ci::gl::drawStrokedRect(hand_area);
+    }
+  });
+#endif
+  win_frame.arrange_vertically();
+}
+
 void cind_display_engine::display_hand(
   std::vector<card_info> const &hand,
   ci::Rectf const &bounds,
@@ -757,6 +855,8 @@ void cind_display_engine::display_lanes(
 
 void cind_display_engine::display_player_top(player_info const& player, bool is_current)
 {
+  display_hand2(player.hand, true, is_current);
+#if 0
   auto [cur_pos_x, cur_pos_y] = std::make_pair(0.0f, 0.0f);
   auto const hand_height = static_cast<float>(m_constants.card_hand_height + (2*m_constants.hand_vertical_padding));
   display_hand(player.hand, ci::Rectf{cur_pos_x, cur_pos_y, 500.0f, hand_height}, is_current);
@@ -764,18 +864,22 @@ void cind_display_engine::display_player_top(player_info const& player, bool is_
   cur_pos_y += hand_height;
 
   display_lanes(player, ci::Rectf{cur_pos_x, cur_pos_y, 0, 0}, is_current, false);
+#endif
 }
 
 void cind_display_engine::display_player_bottom(player_info const& player, bool is_current)
 {
+  display_hand2(player.hand, false, is_current);
+#if 0
   auto [cur_pos_x, cur_pos_y] = std::make_pair(0.0f, 0.0f);
   auto const hand_height = static_cast<float>(m_constants.card_hand_height + (2*m_constants.hand_vertical_padding));
   cur_pos_y = m_constants.window_height - hand_height;
   display_hand(player.hand, ci::Rectf{cur_pos_x, cur_pos_y, 500.0f, hand_height}, is_current);
 
-  //cur_pos_y = cur_pos_y - hand_height;
+  cur_pos_y = cur_pos_y - hand_height;
   display_lanes(player, ci::Rectf{cur_pos_x, m_constants.window_height - hand_height, 0, 0}, is_current, true);
   //display_lanes_top(player, m_constants, ci::Rectf{cur_pos_x, cur_pos_y, 0, 0});
+#endif
 }
 
 ci::gl::Texture2dRef cind_display_engine::hand_card_texture(card_info const& card) const
@@ -861,12 +965,14 @@ void cind_display_engine::display_card_full(card_info const& card) const
     ci::gl::draw(hovered_card_texture(card), rect);
   }
 
+#if 0
   // draw hover highlight
   auto const coord = ci::gl::windowToObjectCoord({m_constants.mouse_x, m_constants.mouse_y});
   if (rect.contains(coord))
   {
     ci::gl::draw(get_texture(L"card-highlight.png"), rect);
   }
+#endif
 
   // show name
   {
@@ -956,7 +1062,6 @@ void cind_display_engine::display_card_full(card_info const& card) const
     ci::Rectf sub_rect{x2 - icon_w, cur_y, x2, cur_y + icon_h};
     ci::gl::draw(terrain_texture, sub_rect);
   }
-
 }
 
 void cind_display_engine::display_hovered_card() const
@@ -1303,8 +1408,8 @@ void cind_display_engine::display_animations()
       it->index++
     };
 
-    AURA_LOG(L"Ratio elapsed: (%lld / %lld) %.02f, Index: %d", time_elapsed.count(), it->total_duration.count(), 
-      in.ratio_elapsed, in.render_index);
+    //AURA_LOG(L"Ratio elapsed: (%lld / %lld) %.02f, Index: %d", time_elapsed.count(), it->total_duration.count(), 
+    //  in.ratio_elapsed, in.render_index);
     it->renderer(in);
   }
 
@@ -1359,7 +1464,7 @@ void cind_display_engine::draw()
   display_player_top(sesh->players[0], sesh->current_player == 0);
   display_player_bottom(sesh->players[1], sesh->current_player == 1);
 
-  display_picks();
+  //display_picks();
   {
     std::lock_guard lk{m_mutex};
     if (!m_hovered_description.empty())

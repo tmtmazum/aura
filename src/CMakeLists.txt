@@ -8,6 +8,8 @@ if (NOT DEFINED CINDER_INCLUDE_DIR)
     set(CINDER_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cinder2/include)
 endif()
 
+add_compile_definitions($<IF:$<CONFIG:Debug>,AURA_DEBUG=1,AURA_DEBUG=0>)
+
 # Boost used by cinder only
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/boost/include)
 

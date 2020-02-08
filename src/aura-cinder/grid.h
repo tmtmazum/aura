@@ -22,6 +22,12 @@ enum class vertical_alignment_t
   center
 };
 
+/*
+Difference between a grid and a frame:
+  - A grid has a variable number of 'uniform' elements with the same size
+  - A frame has a variable number of 'non-uniform' elements of varying size
+*/
+
 //! Convenience class for displaying grid-based items
 struct grid
 {
@@ -246,11 +252,21 @@ struct frame
     auto const pad_x = min_padding_x;
     auto const pad_y = stretch ? std::clamp(height_avail / (elements.size() * 2), min_padding_y, max_padding_y) : min_padding_y;
 
-    auto cur_y = bounds.y1;
+    auto const top = vertical_alignment == vertical_alignment_t::top;
+    auto const top_sign = !top ? -1.0f : 1.0f;
+
+    auto cur_y = top ? bounds.y1 : bounds.y2;
     for (auto const& el : elements)
     {
       auto const cur_x = aligned_x(el.x, min_padding_x) + pad_x;
-      cur_y += pad_y;
+      if (top)
+      {
+        cur_y += top_sign * pad_y;
+      }
+      else
+      {
+        cur_y += top_sign * (el.y + pad_y);
+      }
 
       auto [x1, x2] = std::minmax(cur_x, cur_x + el.x);
       auto [y1, y2] = std::minmax(cur_y, cur_y + el.y);
@@ -258,8 +274,11 @@ struct frame
       ci::Rectf r{x1, y1, x2, y2};
       el.eval(r);
 
-      cur_y += r.getHeight();
-      cur_y += pad_y;
+      if (top)
+      {
+        cur_y += top_sign * r.getHeight();
+      }
+      cur_y += top_sign * pad_y;
     }
   }
 
