@@ -481,6 +481,7 @@ std::error_code local_rules_engine::commit_action(player_action const& action)
     {
       m_session_info.picks.erase(it);
     }
+    return {};
   }
 
   case action_type::primary_action:
@@ -531,6 +532,7 @@ std::error_code local_rules_engine::commit_action(player_action const& action)
       card_actor->strength, card_actor->health,
       card_target->name.c_str(), card_target->on_preferred_terrain ? L' ' : L'N',
       card_target->strength, card_target->health);
+    return {};
   }
 
   case action_type::deploy:

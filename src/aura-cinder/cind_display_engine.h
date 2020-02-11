@@ -24,6 +24,7 @@
 namespace aura
 {
 
+
 class cind_display_engine
   : public display_engine
   , public ci::app::App
@@ -66,6 +67,14 @@ public:
     ci::Rectf const &bounds,
     bool is_current_player);
 
+  void display_tile(player_info const& player,
+    bool top,
+    bool is_current_player,
+    int lane_no,
+    int lane_index,
+    terrain_types tile_terrain,
+    ci::Rectf const& tile_rect);
+
   void display_hand2(
     player_info const& player,
     bool top,
@@ -94,6 +103,14 @@ public:
   void display_lane_marker(int i, ci::Rectf const&);
 
   void display_text(std::string const& text, ci::Rectf const&, ci::ColorAf const& , float point_size, bool) const;
+
+  void display_cost(ci::Rectf const& target, float scale, card_info const& card) const;
+
+  bool display_preferred_terrain(ci::Rectf const& target, float scale, int index, card_info const& card) const;
+
+  bool display_health(ci::Rectf const& target, float scale, int index, card_info const& card) const;
+
+  bool display_strength(ci::Rectf const& target, float scale, int index, card_info const& card) const;
 
   void display_card_full(card_info const&) const;
 

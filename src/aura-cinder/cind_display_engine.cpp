@@ -458,6 +458,79 @@ void cind_display_engine::display_lane_card(card_info const& card, ci::Rectf con
   }
 }
 
+void cind_display_engine::display_tile(
+  player_info const& player,
+  bool top,
+  bool is_current_player,
+  int lane_no,
+  int lane_index,
+  terrain_types tile_terrain,
+  ci::Rectf const& tile_rect)
+{
+  auto const texture_name = std::invoke([&]
+  {
+    switch (tile_terrain)
+    {
+    case terrain_types::plains:     return L"tile-plains.png";
+    case terrain_types::riverlands: return L"tile-riverlands.png";
+    case terrain_types::mountains:  return L"tile-mountains.png";
+    case terrain_types::forests:    return L"tile-forests.png";
+    default:                        return L"tile-placeholder.png";
+    }
+  });
+  ci::gl::draw(get_texture(texture_name), tile_rect);
+
+  auto const normalized_lane_index = top ? lane_index : m_ruleset.max_lane_height - lane_index - 1;
+
+  if (player.lanes[lane_no].size() > normalized_lane_index)
+  {
+    auto& card = player.lanes[lane_no][normalized_lane_index];
+    int index = 0;
+    if (display_strength(tile_rect, 0.5f, index, card))
+    {
+      index++;
+    }
+
+    if (display_health(tile_rect, 0.5f, index, card))
+    {
+      index++;
+    }
+  }
+
+  auto const hovered = tile_rect.contains({m_constants.mouse_x, m_constants.mouse_y});
+  if (hovered)
+  {
+    std::lock_guard lk{m_mutex};
+    m_hovered_description = to_string(tile_terrain);
+    if (is_current_player && m_ui_action.is(cind_action_type::selected_hand_card) && player.lanes[lane_no].size() == normalized_lane_index)
+    {
+      ci::gl::draw(get_texture(L"icon-move.png"), tile_rect);
+
+      m_ui_action.add(uiact::hovered_lane, lane_no);
+    }
+    else if (!is_current_player && m_ui_action.is(cind_action_type::selected_hand_card) && (player.lanes[lane_no].size() - 1) == normalized_lane_index)
+    {
+      ci::gl::draw(get_texture(L"icon-attack.png"), tile_rect);
+
+      auto& card = player.lanes[lane_no][normalized_lane_index];
+      m_ui_action.add(uiact::hovered_lane_card, card.uid);
+      m_hovered_card = &card;
+    }
+    else
+    {
+      ci::gl::ScopedColor col{1.0f, 1.0f, 1.0f, 0.3f};
+      ci::gl::drawSolidRoundedRect(tile_rect, 4.0f);
+
+      if (player.lanes[lane_no].size() > normalized_lane_index)
+      {
+        auto& card = player.lanes[lane_no][normalized_lane_index];
+        m_ui_action.add(uiact::hovered_lane_card, card.uid);
+        m_hovered_card = &card;
+      }
+    }
+  }
+}
+
 void cind_display_engine::display_hand2(
   player_info const& player,
   bool top,
@@ -631,48 +704,9 @@ void cind_display_engine::display_hand2(
       g2.set_reverse(top);
 
       int lane_index = 0;
-      g2.arrange_vertically(item, [&](auto const& tile_terrain, auto const& sub_rect)
+      g2.arrange_vertically(item, [&](auto const& tile_terrain, auto const& tile_rect)
       {
-        auto const texture_name = std::invoke([&]
-        {
-          switch (tile_terrain)
-          {
-          case terrain_types::plains:     return L"tile-plains.png";
-          case terrain_types::riverlands: return L"tile-riverlands.png";
-          case terrain_types::mountains:  return L"tile-mountains.png";
-          case terrain_types::forests:    return L"tile-forests.png";
-          default:                        return L"tile-placeholder.png";
-          }
-        });
-        ci::gl::draw(get_texture(texture_name), sub_rect);
-
-        auto const hovered = sub_rect.contains({m_constants.mouse_x, m_constants.mouse_y});
-        if (hovered)
-        {
-          std::lock_guard lk{m_mutex};
-          m_hovered_description = to_string(tile_terrain);
-          auto const normalized_lane_index = top ? lane_index : m_ruleset.max_lane_height - lane_index - 1;
-          if (is_current_player && m_ui_action.is(cind_action_type::selected_hand_card) && player.lanes[lane_no].size() == normalized_lane_index)
-          {
-            ci::gl::draw(get_texture(L"icon-move.png"), sub_rect);
-
-            m_ui_action.add(uiact::hovered_lane, lane_no);
-          }
-          else if (!is_current_player && m_ui_action.is(cind_action_type::selected_hand_card) && (player.lanes[lane_no].size() - 1) == normalized_lane_index)
-          {
-            ci::gl::draw(get_texture(L"icon-attack.png"), sub_rect);
-
-            auto& card = player.lanes[lane_no][normalized_lane_index];
-            m_ui_action.add(uiact::hovered_lane_card, card.uid);
-            m_hovered_card = &card;
-          }
-          else
-          {
-            ci::gl::ScopedColor col{1.0f, 1.0f, 1.0f, 0.3f};
-            ci::gl::drawSolidRoundedRect(sub_rect, 4.0f);
-          }
-        }
-        lane_index++;
+        display_tile(player, top, is_current_player, lane_no, lane_index++, tile_terrain, tile_rect);
       });
       lane_no++;
     });
@@ -695,7 +729,10 @@ void cind_display_engine::display_hand2(
         ci::gl::translate(sub_rect.x1, sub_rect.y1);
         //ci::gl::rotate(-3.14159f * 0.5f);
         ci::gl::scale(0.2f, 0.2f);
+
+#if 0
         display_card_full(sub_item);
+#endif
       });
     });
   });
@@ -1098,6 +1135,119 @@ ci::gl::Texture2dRef cind_display_engine::hovered_card_texture(card_info const& 
   return get_texture(L"card-placeholder.png");
 }
 
+void cind_display_engine::display_cost(ci::Rectf const& target, float scale, card_info const& card) const
+{
+  ci::gl::ScopedModelMatrix mat{};
+  ci::gl::translate(target.x1, target.y1);
+  ci::gl::scale(scale, scale); 
+
+  // show cost
+  {
+    ci::Rectf cost_rect{0.0f, 0.0f, 40.0f, 40.0f};
+    ci::gl::draw(get_texture(L"icon-gem.png"), cost_rect);
+    aura::draw_line(cost_rect, std::to_string(card.cost));
+  }
+}
+
+template <typename Fn>
+static void display_generic_icon(ci::Rectf const& target, float scale, int index, Fn const& display)
+{
+  auto [icon_w, icon_h] = std::pair{40.0f * scale, 40.0f * scale};
+  auto vertical_padding = 5.0f * scale;
+
+  ci::gl::ScopedModelMatrix mat{};
+  ci::gl::translate(target.x2 - icon_w, target.y1 + index*(icon_h + vertical_padding));
+  ci::gl::scale(scale, scale);
+
+  display();
+}
+
+bool cind_display_engine::display_strength(ci::Rectf const& target, float scale, int index, card_info const& card) const
+{
+  auto const strength_texture = std::invoke([&]() -> ci::gl::Texture2dRef
+  {
+    if (!card.strength || card.has_trait(unit_traits::item))
+    {
+      return nullptr;
+    }
+
+    if (card.strength < 0)
+    {
+      return get_texture(L"icon-heal.png");
+    }
+
+    if (card.has_trait(unit_traits::long_range))
+    {
+      return get_texture(L"icon-bow.png");
+    }
+    return get_texture(L"icon-swords.png");
+  });
+
+  // show strength
+  if (!strength_texture)
+  {
+    return false;
+  }
+
+  display_generic_icon(target, scale, index, [&]()
+  {
+    ci::Rectf sub_rect{0.0f, 0.0f, 40.0f, 40.0f};
+
+    ci::gl::draw(strength_texture, sub_rect);
+    auto const raw_strength = std::to_string(std::abs(card.effective_strength()));
+    auto const str = card.starting_energy > 1 ? raw_strength + "x" + std::to_string(card.starting_energy) : raw_strength;
+    aura::draw_line(sub_rect, str);
+  });
+
+  return true;
+}
+
+bool cind_display_engine::display_health(ci::Rectf const& target, float scale, int index, card_info const& card) const
+{
+  if (card.has_trait(unit_traits::item))
+  {
+    return false;
+  }
+
+  auto [icon_w, icon_h] = std::pair{40.0f * scale, 40.0f * scale};
+  auto vertical_padding = 10.0f * scale;
+
+  display_generic_icon(target, scale, index, [&]()
+  {
+    ci::Rectf sub_rect{0.0f, 0.0f, 40.0f, 40.0f};
+
+    ci::gl::draw(get_texture(L"icon-health.png"), sub_rect);
+    aura::draw_line(sub_rect, std::to_string(card.health));
+  });
+
+  return true;
+}
+
+bool cind_display_engine::display_preferred_terrain(ci::Rectf const& target, float scale, int index, card_info const& card) const
+{
+  auto const terrain_texture = std::invoke([&]() -> ci::gl::Texture2dRef
+  {
+    if (card.preferred_terrain.empty())
+    {
+      return nullptr;
+    }
+    return choose_texture(card.preferred_terrain[0]);
+  });
+
+  if (!terrain_texture)
+  {
+    return false;
+  }
+
+  display_generic_icon(target, scale, index, [&]()
+  {
+    ci::Rectf sub_rect{0.0f, 0.0f, 40.0f, 40.0f};
+
+    ci::gl::draw(terrain_texture, sub_rect);
+  });
+  return true;
+}
+
 void cind_display_engine::display_card_full(card_info const& card) const
 {
   auto const mid_height = m_constants.window_height/2.0f;
@@ -1144,70 +1294,22 @@ void cind_display_engine::display_card_full(card_info const& card) const
   auto [icon_w, icon_h] = std::pair{40.0f, 40.0f};
 
   // show cost
-  {
-    ci::Rectf sub_rect{x1, y1, x1 + icon_w, y1 + icon_h};
-    ci::gl::draw(get_texture(L"icon-gem.png"), sub_rect);
-    aura::draw_line(sub_rect, std::to_string(card.cost));
-  }
+  display_cost(rect, 1.0f, card);
 
   auto cur_y = y1;
 
-  auto const strength_texture = std::invoke([&]() -> ci::gl::Texture2dRef
+  int index = 0;
+  if (display_strength(rect, 1.0f, index, card))
   {
-    if (!card.strength || card.has_trait(unit_traits::item))
-    {
-      return nullptr;
-    }
-
-    if (card.strength < 0)
-    {
-      return get_texture(L"icon-heal.png");
-    }
-
-    if (card.has_trait(unit_traits::long_range))
-    {
-      return get_texture(L"icon-bow.png");
-    }
-    return get_texture(L"icon-swords.png");
-  });
-
-  // show strength
-  if (strength_texture)
-  {
-    ci::Rectf sub_rect{x2 - icon_w, cur_y, x2, cur_y + icon_h};
-    ci::gl::draw(strength_texture, sub_rect);
-    auto const raw_strength = std::to_string(std::abs(card.effective_strength()));
-    auto const str = card.starting_energy > 1 ? raw_strength + "x" + std::to_string(card.starting_energy) : raw_strength;
-    aura::draw_line(sub_rect, str);
-
-    cur_y += icon_h + 10.0f;
+    index++;
   }
 
-  // show health
-  if (!card.has_trait(unit_traits::item))
+  if (display_health(rect, 1.0f, index, card))
   {
-    ci::Rectf sub_rect{x2 - icon_w, cur_y, x2, cur_y + icon_h};
-    ci::gl::draw(get_texture(L"icon-health.png"), sub_rect);
-    aura::draw_line(sub_rect, std::to_string(card.health));
-
-    cur_y += icon_h + 10.0f;
+    index++;
   }
 
-  // show preferred terrain
-  auto const terrain_texture = std::invoke([&]() -> ci::gl::Texture2dRef
-  {
-    if (card.preferred_terrain.empty())
-    {
-      return nullptr;
-    }
-    return choose_texture(card.preferred_terrain[0]);
-  });
-
-  if (terrain_texture)
-  {
-    ci::Rectf sub_rect{x2 - icon_w, cur_y, x2, cur_y + icon_h};
-    ci::gl::draw(terrain_texture, sub_rect);
-  }
+  display_preferred_terrain(rect, 1.0f, index, card);
 }
 
 void cind_display_engine::display_selected_card() const
@@ -1545,6 +1647,7 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
     && m_ui_action.value(uiact::selected_lane_card) == m_ui_action.value(uiact::hovered_lane_card))
   {
     m_ui_action.rm(uiact::selected_lane_card);
+    m_selected_card = {};
     return;
   }
 
@@ -1554,6 +1657,7 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
     m_ui_action.reset_selected();
     m_ui_action.add(uiact::selected_lane_card, hovered_card);
     m_can_be_targetted = m_rules_engine.get_target_list(hovered_card);
+    m_selected_card = *m_hovered_card;
     return;
   }
 
