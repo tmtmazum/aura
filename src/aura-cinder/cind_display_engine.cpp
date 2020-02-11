@@ -541,70 +541,70 @@ void cind_display_engine::display_hand2(
   // health bar
   win_frame.add_element(m_constants.window_width, m_constants.board_lane_marker_height, [&](auto const& hand_area)
   {
+    auto const max_health_bar_width = 50.0f * player.starting_health;
+    auto const actual_health_bar_width = ((float)player.health / player.starting_health) * max_health_bar_width;
+    auto const lcenter = lcenter_for(actual_health_bar_width);
+
+    auto const [x1, x2] = std::minmax(lcenter, lcenter + actual_health_bar_width);
+    auto const [x3, x4] = std::minmax(lcenter_for(max_health_bar_width), lcenter_for(max_health_bar_width) + max_health_bar_width);
+
+    auto const [y1, y2] = std::minmax(hand_area.y1, hand_area.y2);
+    //auto const [y1, y2] = std::minmax(cur_pos_y, cur_pos_y + (sign * m_constants.board_lane_marker_height));
+
+    ci::Rectf reduced_rect{x1, y1, x2, y2};
+    ci::Rectf max_rect{x3, y1, x4, y2};
+    //ci::Rectf rect{cur_pos_x + (remaining_width / 2), y1,  cur_pos_x + (remaining_width / 2) + 500, y2};
+
     {
-      auto const max_health_bar_width = 50.0f * player.starting_health;
-      auto const actual_health_bar_width = ((float)player.health / player.starting_health) * max_health_bar_width;
-      auto const lcenter = lcenter_for(actual_health_bar_width);
+      ci::gl::ScopedColor col{0.1, 0.1, 0.1, 1.0};
+      ci::gl::drawSolidRoundedRect(max_rect, 10, 10);
+    }
 
-      auto const [x1, x2] = std::minmax(lcenter, lcenter + actual_health_bar_width);
-      auto const [x3, x4] = std::minmax(lcenter_for(max_health_bar_width), lcenter_for(max_health_bar_width) + max_health_bar_width);
+    if (reduced_rect.contains({m_constants.mouse_x, m_constants.mouse_y}))
+    {
+      ci::gl::ScopedColor col{0.0, 0.5, 0.0, 1.0};
+      ci::gl::drawSolidRoundedRect(reduced_rect, 10, 10);
 
-      auto const [y1, y2] = std::minmax(hand_area.y1, hand_area.y2);
-      //auto const [y1, y2] = std::minmax(cur_pos_y, cur_pos_y + (sign * m_constants.board_lane_marker_height));
+      std::lock_guard lk{m_mutex};
+      m_ui_action.add(uiact::hovered_player, player.uid);
+    }
+    else
+    {
+      ci::gl::ScopedColor col{0.0, 0.4, 0.0, 1.0};
+      ci::gl::drawSolidRoundedRect(reduced_rect, 10, 10);
+    }
 
-      ci::Rectf reduced_rect{x1, y1, x2, y2};
-      ci::Rectf max_rect{x3, y1, x4, y2};
-      //ci::Rectf rect{cur_pos_x + (remaining_width / 2), y1,  cur_pos_x + (remaining_width / 2) + 500, y2};
+    auto const str = stringprintf<64>("Player | Health: %d / %d | Mana: %d", player.health, player.starting_health, player.mana);
+    display_text(str, max_rect, {0.9, 0.9, 0.9, 1.0}, max_rect.getHeight(), true);
+  });
 
+  // end turn button
+  win_frame.add_element(m_constants.window_width, m_constants.board_lane_marker_height + 2*m_constants.board_vertical_padding, [&](auto const& hand_area)
+  {
+    auto const [x1, x2] = std::minmax(lcenter_for(120), lcenter_for(120) + 120);
+    auto const top_sign = top ? 1.0f : -1.0f;
+    auto const [y1, y2] = std::minmax(hand_area.y1 + m_constants.board_vertical_padding, hand_area.y1 + (top_sign * m_constants.board_lane_marker_height));
+
+    ci::Rectf end_turn_rect{x1, y1,  x2, y2};
+
+    if (is_current_player)
+    {
+      if (end_turn_rect.contains({m_constants.mouse_x, m_constants.mouse_y}))
       {
-        ci::gl::ScopedColor col{0.1, 0.1, 0.1, 1.0};
-        ci::gl::drawSolidRoundedRect(max_rect, 10, 10);
-      }
-
-      if (reduced_rect.contains({m_constants.mouse_x, m_constants.mouse_y}))
-      {
-        ci::gl::ScopedColor col{0.0, 0.5, 0.0, 1.0};
-        ci::gl::drawSolidRoundedRect(reduced_rect, 10, 10);
-
+        ci::gl::ScopedColor col{1.0, 0.0, 0.0, 1.0};
+        ci::gl::drawSolidRoundedRect(end_turn_rect, 10, 10);
         std::lock_guard lk{m_mutex};
-        m_ui_action.add(uiact::hovered_player, player.uid);
+        m_ui_action.add(uiact::hovered_end_turn, 0);
       }
       else
       {
-        ci::gl::ScopedColor col{0.0, 0.4, 0.0, 1.0};
-        ci::gl::drawSolidRoundedRect(reduced_rect, 10, 10);
+        ci::gl::ScopedColor col{0.4, 0.4, 0.4, 1.0};
+        ci::gl::drawSolidRoundedRect(end_turn_rect, 10, 10);
       }
-
-      auto const str = stringprintf<64>("Player | Health: %d / %d | Mana: %d", player.health, player.starting_health, player.mana);
-      display_text(str, max_rect, {0.9, 0.9, 0.9, 1.0}, max_rect.getHeight(), true);
-    } });
-
-    win_frame.add_element(m_constants.window_width, m_constants.board_lane_marker_height + 2*m_constants.board_vertical_padding, [&](auto const& hand_area)
-    {
-      auto const [x1, x2] = std::minmax(lcenter_for(120), lcenter_for(120) + 120);
-      auto const top_sign = top ? 1.0f : -1.0f;
-      auto const [y1, y2] = std::minmax(hand_area.y1 + m_constants.board_vertical_padding, hand_area.y1 + (top_sign * m_constants.board_lane_marker_height));
-
-      ci::Rectf end_turn_rect{x1, y1,  x2, y2};
-
-      if (is_current_player)
-      {
-        if (end_turn_rect.contains({m_constants.mouse_x, m_constants.mouse_y}))
-        {
-          ci::gl::ScopedColor col{1.0, 0.0, 0.0, 1.0};
-          ci::gl::drawSolidRoundedRect(end_turn_rect, 10, 10);
-          std::lock_guard lk{m_mutex};
-          m_ui_action.add(uiact::hovered_end_turn, 0);
-        }
-        else
-        {
-          ci::gl::ScopedColor col{0.4, 0.4, 0.4, 1.0};
-          ci::gl::drawSolidRoundedRect(end_turn_rect, 10, 10);
-        }
-        display_text(std::string{"END TURN"}, end_turn_rect, {0.9, 0.9, 0.9, 1.0}, end_turn_rect.getHeight(), true);
-      }
-    });
-    
+      display_text(std::string{"END TURN"}, end_turn_rect, {0.9, 0.9, 0.9, 1.0}, end_turn_rect.getHeight(), true);
+    }
+  });
+  
   // lanes
   auto const lane_height = (m_constants.card_board_height * 4) + (m_constants.board_vertical_padding * 8);
   auto const lane_width = (m_constants.card_board_width * 4) + (m_constants.board_horizontal_padding * 8);
@@ -619,6 +619,11 @@ void cind_display_engine::display_hand2(
     int lane_no = 0;
     g.arrange_horizontally(m_session_info->terrain, [&](auto const& item, auto const& rect)
     {
+      if (item.empty())
+      {
+        return;
+      }
+
       auto g2 = make_grid(rect);
       g2.set_element_size(m_constants.card_board_width, m_constants.card_board_height);
       g2.set_padding(0.0f, m_constants.board_vertical_padding);
@@ -650,7 +655,21 @@ void cind_display_engine::display_hand2(
           if (is_current_player && m_ui_action.is(cind_action_type::selected_hand_card) && player.lanes[lane_no].size() == normalized_lane_index)
           {
             ci::gl::draw(get_texture(L"icon-move.png"), sub_rect);
-            m_ui_action.add(uiact::hovered_lane, normalized_lane_index);
+
+            m_ui_action.add(uiact::hovered_lane, lane_no);
+          }
+          else if (!is_current_player && m_ui_action.is(cind_action_type::selected_hand_card) && (player.lanes[lane_no].size() - 1) == normalized_lane_index)
+          {
+            ci::gl::draw(get_texture(L"icon-attack.png"), sub_rect);
+
+            auto& card = player.lanes[lane_no][normalized_lane_index];
+            m_ui_action.add(uiact::hovered_lane_card, card.uid);
+            m_hovered_card = &card;
+          }
+          else
+          {
+            ci::gl::ScopedColor col{1.0f, 1.0f, 1.0f, 0.3f};
+            ci::gl::drawSolidRoundedRect(sub_rect, 4.0f);
           }
         }
         lane_index++;
@@ -660,6 +679,11 @@ void cind_display_engine::display_hand2(
 
     g.arrange_horizontally(player.lanes, [&](auto const& item, auto const& rect)
     {
+      if (item.empty())
+      {
+        return;
+      }
+
       auto g2 = make_grid(rect);
       g2.set_element_size(m_constants.card_board_width, m_constants.card_board_height);
       g2.set_padding(0.0f, m_constants.board_vertical_padding);
@@ -1186,20 +1210,58 @@ void cind_display_engine::display_card_full(card_info const& card) const
   }
 }
 
+void cind_display_engine::display_selected_card() const
+{
+  if (!m_selected_card)
+  {
+    return;
+  }
+
+  auto const mid_height = m_constants.window_height/2.0f;
+
+  auto [x1, x2] = std::minmax(m_constants.window_width - m_constants.highlight_descr_width, m_constants.window_width);
+  auto [y1, y2] =
+      std::minmax(mid_height + m_constants.board_vertical_padding,
+                  mid_height + m_constants.board_vertical_padding +
+                      m_constants.highlight_descr_height);
+  ci::Rectf rect{x1, y1, x2, y2};
+
+  {
+    ci::gl::ScopedModelMatrix mat{};
+    ci::gl::translate(x1, y1);
+
+    display_card_full(m_selected_card.value());
+  }
+
+  
+}
+
 void cind_display_engine::display_hovered_card() const
 {
   auto const mid_height = m_constants.window_height/2.0f;
 
   auto [x1, x2] = std::minmax(m_constants.window_width - m_constants.highlight_descr_width, m_constants.window_width);
-  auto [y1, y2] = std::minmax(mid_height - m_constants.highlight_descr_height/2.0f, mid_height + m_constants.highlight_descr_height/2.0f);
+  auto [y1, y2] = m_selected_card
+    ? std::minmax(mid_height - m_constants.board_vertical_padding, mid_height - (m_constants.board_vertical_padding + m_constants.highlight_descr_height))
+    : std::minmax(mid_height - m_constants.highlight_descr_height/2.0f, mid_height + m_constants.highlight_descr_height/2.0f);
   ci::Rectf rect{x1, y1, x2, y2};
-  //rect.offset({-m_constants.card_icon_width, 0.0f});
 
   {
     ci::gl::ScopedModelMatrix mat{};
     ci::gl::translate(x1, y1);
 
     display_card_full(*m_hovered_card);
+  }
+
+  if (m_selected_card)
+  {
+    auto x3 = m_constants.window_width - m_constants.highlight_descr_width/2.0f - m_constants.card_board_width/2.0f;
+    auto x4 = x3 + m_constants.card_board_width;
+    auto y3 = mid_height - m_constants.card_board_height/2.0f;
+    auto y4 = y3 + m_constants.card_board_height;
+
+    ci::Rectf r2{x3, y3, x4, y4};
+    ci::gl::draw(get_texture(L"icon-attack.png"), r2);
   }
 }
 
@@ -1395,12 +1457,18 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
     }));
   };
 
+  auto const reset_action = [&]()
+  {
+    m_ui_action.reset_selected();
+    m_selected_card.reset();
+  };
+
   // Pick card
   if (m_ui_action.is(uiact::hovered_pick_card))
   {
     auto const hovered_card = m_ui_action.value(uiact::hovered_pick_card);
     m_action.set_value(make_pick_action(hovered_card));
-    m_ui_action.reset_selected();
+    reset_action();
     return;
   }
 
@@ -1411,7 +1479,7 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
     auto const selected_value = m_ui_action.value(uiact::selected_hand_card);
     auto const hovered_lane = m_ui_action.value(uiact::hovered_lane);
     AURA_LOG(L"Setting action with %d, %d", selected_value, hovered_lane + 1);
-    m_ui_action.reset_selected();
+    reset_action();
     m_action.set_value(make_deploy_action(selected_value, hovered_lane + 1));
     return;
   }
@@ -1424,7 +1492,7 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
   {
     m_action.set_value(make_primary_action(m_ui_action.value(uiact::selected_lane_card), m_ui_action.value(uiact::hovered_lane_card)));
     start_animation();
-    m_ui_action.reset_selected();
+    reset_action();
     return;
   }
   
@@ -1433,7 +1501,7 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
       && m_ui_action.is(uiact::hovered_lane_card))
   {
     m_action.set_value(make_primary_action(m_ui_action.value(uiact::selected_hand_card), m_ui_action.value(uiact::hovered_lane_card)));
-    m_ui_action.reset_selected();
+    reset_action();
     return;
   }
 
@@ -1442,7 +1510,7 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
       && m_ui_action.is(uiact::hovered_player))
   {
     m_action.set_value(make_primary_action(m_ui_action.value(uiact::selected_hand_card), m_ui_action.value(uiact::hovered_player)));
-    m_ui_action.reset_selected();
+    reset_action();
     return;
   }
 
@@ -1451,7 +1519,7 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
     && m_ui_action.is(uiact::hovered_player))
   {
     m_action.set_value(make_primary_action(m_ui_action.value(uiact::selected_lane_card), m_ui_action.value(uiact::hovered_player)));
-    m_ui_action.reset_selected();
+    reset_action();
     return;
   }
 
@@ -1467,6 +1535,7 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
     && m_ui_action.value(uiact::selected_hand_card) == m_ui_action.value(uiact::hovered_hand_card))
   {
     m_ui_action.rm(uiact::selected_hand_card);
+    m_selected_card = {};
     return;
   }
 
@@ -1494,6 +1563,7 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
     m_ui_action.reset_selected();
     m_ui_action.add(uiact::selected_hand_card, hovered_card);
     m_can_be_targetted = m_rules_engine.get_target_list(hovered_card);
+    m_selected_card = *m_hovered_card;
     return;
   }
   AURA_LOG(L"- 0x%x", m_ui_action.type);
@@ -1556,6 +1626,7 @@ player_action cind_display_engine::display_session(std::shared_ptr<session_info>
 
 void cind_display_engine::draw()
 {
+  auto const l = ci::log::makeLogger<ci::log::LoggerFile>(R"(F:\cpp-projects\aura\log.txt)", true);
   auto const sesh = with_lock([&]
   {
     m_ui_action.reset_hovered();
@@ -1593,14 +1664,18 @@ void cind_display_engine::draw()
     {
       display_hovered_description();
     }
+    if (m_selected_card)
+    {
+      display_selected_card();
+    }
     if (m_hovered_card)
     {
-      ci::gl::ScopedModelMatrix model;
       display_hovered_card();
     }
   }
   display_mouse();
   display_animations();
+  ci::log::manager()->removeLogger(l);
 }
 
 }

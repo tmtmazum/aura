@@ -97,6 +97,8 @@ public:
 
   void display_card_full(card_info const&) const;
 
+  void display_selected_card() const;
+
   void display_hovered_card() const;
 
   void display_hovered_description() const;
@@ -145,6 +147,9 @@ private:
   mutable std::string m_hovered_description;
 
   card_info const* m_hovered_card{};
+
+  // selected card is persisted across turns, so it must be copied
+  std::optional<card_info> m_selected_card{};
 
   ci::gl::Texture2dRef m_mouse_texture{};
 
