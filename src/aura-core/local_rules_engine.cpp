@@ -548,6 +548,9 @@ std::error_code local_rules_engine::commit_action(player_action const& action)
     LEGAL_ASSERT(it != end(player.hand), L"No card with that identifier was found in the current player's hand");
     LEGAL_ASSERT(!it->has_trait(unit_traits::item), L"Cannot deploy item cards");
     LEGAL_ASSERT(it->cost <= player.mana, L"Insufficient mana to deploy that card");
+
+    AURA_LOG(L"[lre] deploy(%ls) to lane %d", it->name.c_str(), lane_id);
+
     if (!it->has_trait(unit_traits::assassin))
     {
       it->energy = 0;
@@ -560,7 +563,9 @@ std::error_code local_rules_engine::commit_action(player_action const& action)
     {
       it->second(*this, m_session_info, player, m_session_info.players[!m_session_info.current_player]);
     }
+    AURA_LOG(L"before remove from hand");
     player.hand.erase(it);
+    AURA_LOG(L"after remove from hand");
     return {};
   }
 

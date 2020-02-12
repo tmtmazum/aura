@@ -64,6 +64,11 @@ struct card_info
     return !energy && strength;
   }
 
+  bool can_act() const noexcept
+  {
+    return !is_resting() && strength;
+  }
+
   virtual ~card_info() = default;
 };
 

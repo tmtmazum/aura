@@ -469,46 +469,91 @@ void cind_display_engine::display_tile_overlay(
 {
   auto const normalized_lane_index = top ? lane_index : m_ruleset.max_lane_height - lane_index - 1;
   auto const hovered = tile_rect.contains({m_constants.mouse_x, m_constants.mouse_y});
-  if (hovered)
+  auto const has_card = (player.lanes[lane_no].size() > normalized_lane_index);
+
+  //! whether this is the next usable (empty) tile in the lane
+  auto const is_next_tile_in_lane = (player.lanes[lane_no].size() == normalized_lane_index);
+
+  std::lock_guard lk{m_mutex};
+  if (!has_card)
   {
-    std::lock_guard lk{m_mutex};
-    m_hovered_description = stringprintf<64>("lane_index:%d, normalized:%d", lane_index, normalized_lane_index);
-      //to_string(tile_terrain);
-    if (is_current_player && m_ui_action.is(cind_action_type::selected_hand_card) && player.lanes[lane_no].size() == normalized_lane_index)
+    if (!hovered)
+    {
+      return;
+    }
+
+    if (is_current_player && m_ui_action.is(cind_action_type::selected_hand_card) && is_next_tile_in_lane)
     {
       ci::gl::draw(get_texture(L"icon-move.png"), tile_rect);
 
       m_ui_action.add(uiact::hovered_lane, lane_no);
     }
-    else if (!is_current_player &&
-             (m_ui_action.is(cind_action_type::selected_lane_card) ||
-              m_ui_action.is(cind_action_type::selected_hand_card)) &&
-             (player.lanes[lane_no].size() - 1) == normalized_lane_index)
-    {
-      if (m_selected_card && m_selected_card->strength < 0)
-      {
-        ci::gl::draw(get_texture(L"icon-heal.png"), tile_rect);
-      }
-      else
-      {
-        ci::gl::draw(get_texture(L"icon-attack.png"), tile_rect);
-      }
-
-      auto& card = player.lanes[lane_no][normalized_lane_index];
-      m_ui_action.add(uiact::hovered_lane_card, card.uid);
-      m_hovered_card = &card;
-    }
     else
     {
       ci::gl::ScopedColor col{1.0f, 1.0f, 1.0f, 0.3f};
       ci::gl::drawSolidRoundedRect(tile_rect, 4.0f);
+    }
+    m_hovered_description = to_string(tile_terrain);
+    return;
+  }
 
-      if (player.lanes[lane_no].size() > normalized_lane_index)
-      {
-        auto& card = player.lanes[lane_no][normalized_lane_index];
-        m_ui_action.add(uiact::hovered_lane_card, card.uid);
-        m_hovered_card = &card;
-      }
+  auto& card = player.lanes[lane_no][normalized_lane_index];
+  auto const is_selected = (m_ui_action.is(uiact::selected_lane_card) && card.uid == m_ui_action.value(uiact::selected_lane_card));
+
+  if (card.on_preferred_terrain)
+  {
+    ci::gl::ScopedColor col{0.0f, 1.0f, 0.0f, 1.0f};
+    ci::gl::drawStrokedRoundedRect(tile_rect, 5.0f);
+  }
+
+  if (is_selected)
+  {
+    ci::gl::draw(get_texture(L"tile-selected.png"), tile_rect);
+  }
+
+  if (card.is_resting() && is_current_player)
+  {
+    ci::gl::draw(get_texture(L"resting.png"), tile_rect);
+  }
+
+  if (!hovered)
+  {
+    return;
+  }
+  m_hovered_description = ci::msw::toUtf8String(card.name);
+
+  m_ui_action.add(uiact::hovered_lane_card, card.uid);
+
+  if (is_selected)
+  {
+    return;
+  }
+
+  m_hovered_card = &card;
+
+  if (is_current_player && card.can_act())
+  {
+    ci::gl::draw(get_texture(L"tile-highlight.png"), tile_rect);
+    return;
+  }
+
+  if ((m_ui_action.is(cind_action_type::selected_lane_card) ||
+       m_ui_action.is(cind_action_type::selected_hand_card)) &&
+      (player.lanes[lane_no].size() - 1) == normalized_lane_index)
+  {
+    if (m_selected_card && m_selected_card->strength < 0)
+    {
+      ci::gl::draw(get_texture(L"icon-heal.png"), tile_rect);
+
+      ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
+      ci::gl::drawStrokedRoundedRect(tile_rect, 5.0f);
+    }
+    else
+    {
+      ci::gl::draw(get_texture(L"icon-attack.png"), tile_rect);
+
+      ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
+      ci::gl::drawStrokedRoundedRect(tile_rect, 5.0f);
     }
   }
 }
@@ -536,11 +581,27 @@ void cind_display_engine::display_tile(
 
   auto const normalized_lane_index = top ? lane_index : m_ruleset.max_lane_height - lane_index - 1;
 
+  //if (player.lanes[lane_no].size() <= normalized_lane_index)
+  //{
+  //  ci::gl::draw(get_texture(texture_name), tile_rect);
+  //  return;
+  //}
   if (player.lanes[lane_no].size() <= normalized_lane_index)
   {
-    ci::gl::draw(get_texture(texture_name), tile_rect);
+    if (player.lanes[lane_no].size() == normalized_lane_index ||
+        m_is_tile_revealed[lane_no][normalized_lane_index])
+    {
+      m_is_tile_revealed[lane_no][normalized_lane_index] = true;
+      ci::gl::draw(get_texture(texture_name), tile_rect);
+    }
+    else
+    {
+      ci::gl::draw(get_texture(L"tile-empty.png"), tile_rect);
+    }
     return;
   }
+
+  m_is_tile_revealed[lane_no][normalized_lane_index] = true;
 
   auto& card = player.lanes[lane_no][normalized_lane_index];
 
@@ -604,8 +665,18 @@ void cind_display_engine::display_hand2(
       f.set_padding(m_constants.hand_horizontal_padding, m_constants.hand_vertical_padding);
       f.set_element_size(m_constants.highlight_descr_width * scale_factor, m_constants.highlight_descr_height * scale_factor);
 
-      f.arrange_horizontally(player.hand, [&](auto const& item, ci::Rectf const& rect)
+      f.arrange_horizontally(player.hand, [&](auto const& item, ci::Rectf const& orig_rect)
       {
+        auto const cur_mana = m_session_info->players[m_session_info->current_player].mana;
+        auto const playable = item.cost <= cur_mana;
+
+        auto rect = orig_rect;
+        if (is_current_player && playable)
+        {
+          auto const top_sign = top ? 1.0f : -1.0f;
+          rect.offset({0.0f, top_sign * 5.0f});
+        }
+
         ci::gl::ScopedModelMatrix mat{};
         ci::gl::translate(rect.x1, rect.y1);
         ci::gl::scale(scale_factor, scale_factor);
@@ -619,18 +690,16 @@ void cind_display_engine::display_hand2(
         auto [y1, y2] = std::minmax(0.0f, m_constants.highlight_descr_height);
 
         ci::Rectf size_rect{x1, y1, x2, y2};
-        // draw hover highlight
         auto const coord = ci::gl::windowToObjectCoord({m_constants.mouse_x, m_constants.mouse_y});
 
         auto const hovered = size_rect.contains(coord);
         auto const selected = m_ui_action.is(uiact::selected_hand_card) && m_ui_action.value(uiact::selected_hand_card) == item.uid;
-        auto const cur_mana = m_session_info->players[m_session_info->current_player].mana;
-        auto const passive = item.cost > cur_mana;
+        // draw hover highlight
         if (!is_current_player)
         {
           ci::gl::draw(get_texture(L"card-hidden.png"), size_rect);
         }
-        else if (passive)
+        else if (!playable)
         {
           ci::gl::draw(get_texture(L"card-passive.png"), size_rect);
         }
@@ -650,7 +719,16 @@ void cind_display_engine::display_hand2(
           if (is_current_player)
           {
             m_hovered_card = &item;
+            if (playable)
+            {
+              m_hovered_description = ci::msw::toUtf8String(item.name);
+            }
+            else
+            {
+              m_hovered_description = ci::msw::toUtf8String(item.name) + " (Insufficient mana to play this card)";
+            }
           }
+
         }
       });
   });
@@ -662,6 +740,46 @@ void cind_display_engine::display_hand2(
   };
 
   // health bar
+  auto const health_bar_h = 40.0f;
+  win_frame.add_element(400.0f, health_bar_h, [&](auto const& hand_area)
+  {
+    ci::gl::draw(get_texture(L"player-bar.png"), hand_area);
+
+    auto f = make_frame(hand_area);
+    f.align_horizontal(horizontal_alignment_t::center);
+    f.align_vertical(vertical_alignment_t::center);
+    f.set_min_padding(4.0f, 4.0f);
+    f.set_stretch(false);
+    f.add_element(200.0f, health_bar_h, [&](auto const& rect)
+    {
+      draw_line(rect, "Player");
+    });
+    f.add_element(40.0f, health_bar_h, [&](auto const& rect)
+    {
+      ci::gl::draw(get_texture(L"icon-health.png"), rect);
+      aura::draw_line(rect, std::to_string(player.health));
+    });
+    f.add_element(40.0f, health_bar_h, [&](auto const& rect)
+    {
+      ci::gl::draw(get_texture(L"icon-gem.png"), rect);
+      aura::draw_line(rect, std::to_string(player.mana) + "/" + std::to_string(player.starting_mana));
+    });
+    f.add_element(80.0f, 30.0f, [&](auto const& rect)
+    {
+      if (is_current_player)
+      {
+        ci::gl::draw(get_texture(L"end-turn-bar.png"), rect);
+        aura::draw_line(rect, "END TURN");
+      }
+      else
+      {
+        ci::gl::draw(get_texture(L"waiting-bar.png"), rect);
+        aura::draw_line(rect, "WAITING");
+      }
+    });
+    f.arrange_horizontally();
+  });
+#if 0
   win_frame.add_element(m_constants.window_width, m_constants.board_lane_marker_height, [&](auto const& hand_area)
   {
     auto const max_health_bar_width = 50.0f * player.starting_health;
@@ -700,6 +818,7 @@ void cind_display_engine::display_hand2(
     auto const str = stringprintf<64>("Player | Health: %d / %d | Mana: %d", player.health, player.starting_health, player.mana);
     display_text(str, max_rect, {0.9, 0.9, 0.9, 1.0}, max_rect.getHeight(), true);
   });
+#endif
 
   // end turn button
   win_frame.add_element(m_constants.window_width, m_constants.board_lane_marker_height + 2*m_constants.board_vertical_padding, [&](auto const& hand_area)
@@ -1705,6 +1824,10 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
 
   if (m_ui_action.is(uiact::hovered_lane_card))
   {
+    if (m_hovered_card && !m_hovered_card->can_act())
+    {
+      return;
+    }
     auto const hovered_card = m_ui_action.value(uiact::hovered_lane_card);
     m_ui_action.reset_selected();
     m_ui_action.add(uiact::selected_lane_card, hovered_card);
@@ -1720,7 +1843,6 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
     m_ui_action.add(uiact::selected_hand_card, hovered_card);
     m_can_be_targetted = m_rules_engine.get_target_list(hovered_card);
     m_selected_card = *m_hovered_card;
-    return;
   }
   AURA_LOG(L"- 0x%x", m_ui_action.type);
 }

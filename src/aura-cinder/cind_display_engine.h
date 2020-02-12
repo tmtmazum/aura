@@ -37,6 +37,9 @@ public:
     ci::app::addAssetDirectory(LR"(F:\cpp-projects\aura\assets\)");  
     card_info in{};
 
+    std::vector<bool> v(m_ruleset.max_lane_height, false);
+    m_is_tile_revealed = std::vector<std::vector<bool>>(m_ruleset.num_lanes, v);
+
     m_logic_thread = std::thread{[this]
     {
       start_game_session(m_ruleset, m_rules_engine, *this);
@@ -191,6 +194,8 @@ private:
   std::promise<player_action> m_action;
 
   std::unordered_map<int, float> ratios;
+
+  std::vector<std::vector<bool>> m_is_tile_revealed{};
   //float m_ratio{0.0f};
 };
 
