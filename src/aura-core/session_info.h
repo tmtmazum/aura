@@ -69,6 +69,15 @@ struct card_info
     return !is_resting() && strength;
   }
 
+  bool can_attack() const noexcept { return strength > 0; }
+  bool can_heal() const noexcept { return strength < 0; }
+  bool can_be_deployed() const noexcept { return !has_trait(unit_traits::item); }
+  bool prefers_terrain(terrain_types t)
+  {
+    return std::any_of(begin(preferred_terrain), end(preferred_terrain),
+      [&](auto const tt) { return tt == t; });
+  }
+
   virtual ~card_info() = default;
 };
 
@@ -85,6 +94,7 @@ struct player_info : public card_info
   int picks_available{};
   int mana;
   int starting_mana;
+  std::string name = "Player";
 
   std::vector<card_info> hand;
   std::vector<std::vector<card_info>> lanes;

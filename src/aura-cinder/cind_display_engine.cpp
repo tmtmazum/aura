@@ -482,18 +482,30 @@ void cind_display_engine::display_tile_overlay(
       return;
     }
 
-    if (is_current_player && m_ui_action.is(cind_action_type::selected_hand_card) && is_next_tile_in_lane)
+    if (is_current_player
+      && m_ui_action.is(cind_action_type::selected_hand_card)
+      && is_next_tile_in_lane
+      && m_selected_card && m_selected_card->can_be_deployed())
     {
       ci::gl::draw(get_texture(L"icon-move.png"), tile_rect);
 
       m_ui_action.add(uiact::hovered_lane, lane_no);
+      m_hovered_description = to_string(tile_terrain);
+      if (m_selected_card && m_selected_card->prefers_terrain(tile_terrain))
+      {
+        m_hovered_description += " (preferred: +1 defense)";
+        ci::gl::ScopedColor col{0.0f, 1.0f, 0.0f, 1.0f};
+        ci::gl::drawStrokedRoundedRect(tile_rect, 5.0f);
+      }
     }
-    else
+    else if (player.lanes[lane_no].size() == normalized_lane_index
+      && is_current_player
+      && m_ui_action.is(cind_action_type::selected_hand_card))
     {
       ci::gl::ScopedColor col{1.0f, 1.0f, 1.0f, 0.3f};
       ci::gl::drawSolidRoundedRect(tile_rect, 4.0f);
+      m_hovered_description = to_string(tile_terrain);
     }
-    m_hovered_description = to_string(tile_terrain);
     return;
   }
 
@@ -541,14 +553,14 @@ void cind_display_engine::display_tile_overlay(
        m_ui_action.is(cind_action_type::selected_hand_card)) &&
       (player.lanes[lane_no].size() - 1) == normalized_lane_index)
   {
-    if (m_selected_card && m_selected_card->strength < 0)
+    if (m_selected_card && m_selected_card->can_heal())
     {
       ci::gl::draw(get_texture(L"icon-heal.png"), tile_rect);
 
       ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
       ci::gl::drawStrokedRoundedRect(tile_rect, 5.0f);
     }
-    else
+    else if (m_selected_card && m_selected_card->can_attack())
     {
       ci::gl::draw(get_texture(L"icon-attack.png"), tile_rect);
 
@@ -588,15 +600,17 @@ void cind_display_engine::display_tile(
   //}
   if (player.lanes[lane_no].size() <= normalized_lane_index)
   {
-    if (player.lanes[lane_no].size() == normalized_lane_index ||
-        m_is_tile_revealed[lane_no][normalized_lane_index])
+    if (player.lanes[lane_no].size() == normalized_lane_index
+      && is_current_player && m_ui_action.is(uiact::selected_hand_card)
+      && m_selected_card && m_selected_card->can_be_deployed()
+      /*|| m_is_tile_revealed[lane_no][normalized_lane_index]*/)
     {
       m_is_tile_revealed[lane_no][normalized_lane_index] = true;
       ci::gl::draw(get_texture(texture_name), tile_rect);
     }
     else
     {
-      ci::gl::draw(get_texture(L"tile-empty.png"), tile_rect);
+      //ci::gl::draw(get_texture(L"tile-empty.png"), tile_rect);
     }
     return;
   }
@@ -630,13 +644,15 @@ void cind_display_engine::display_tile(
     aura::draw_line(line_rect, ci::msw::toUtf8String(card.name));
   }
 
+  auto const scale_factor = (card.can_attack() || card.can_heal() ? 0.7f : 0.8f);
+
   int index = 0;
-  if (display_strength(tile_rect, 0.5f, index, card))
+  if (display_strength(tile_rect, scale_factor, index, card))
   {
     index++;
   }
 
-  if (display_health(tile_rect, 0.5f, index, card))
+  if (display_health(tile_rect, scale_factor, index, card))
   {
     index++;
   }
@@ -671,10 +687,10 @@ void cind_display_engine::display_hand2(
         auto const playable = item.cost <= cur_mana;
 
         auto rect = orig_rect;
-        if (is_current_player && playable)
+        if (is_current_player && !playable)
         {
-          auto const top_sign = top ? 1.0f : -1.0f;
-          rect.offset({0.0f, top_sign * 5.0f});
+          auto const top_sign = top ? -1.0f : 1.0f;
+          rect.offset({0.0f, top_sign * 4.0f});
         }
 
         ci::gl::ScopedModelMatrix mat{};
@@ -741,9 +757,58 @@ void cind_display_engine::display_hand2(
 
   // health bar
   auto const health_bar_h = 40.0f;
-  win_frame.add_element(400.0f, health_bar_h, [&](auto const& hand_area)
+  win_frame.add_element(450.0f, health_bar_h, [&](auto const& hand_area)
   {
     ci::gl::draw(get_texture(L"player-bar.png"), hand_area);
+
+    // attacking the opponent champion
+    std::invoke([&]
+    {
+      if (!hand_area.contains({m_constants.mouse_x, m_constants.mouse_y}))
+      {
+        return;
+      }
+
+      if (!m_selected_card)
+      {
+        return;
+      }
+      
+      if (!m_selected_card->can_attack())
+      {
+        std::lock_guard lk{m_mutex};
+        m_hovered_description = player.name + ": no actions possible at this time";
+        return;
+      }
+
+      if (m_session_info->players[m_session_info->current_player].uid == player.uid)
+      {
+        std::lock_guard lk{m_mutex};
+        m_hovered_description = "Player: can't attack self";
+        return;
+      }
+
+      if (!player.has_free_lane())
+      {
+        std::lock_guard lk{m_mutex};
+        m_hovered_description = player.name + ": no free lane available to attack";
+        return;
+      }
+
+      auto x3 = m_constants.window_width/2.0f - m_constants.card_board_width/2.0f;
+      auto x4 = x3 + m_constants.card_board_width;
+      auto y3 = hand_area.y1;
+      auto y4 = y3 + m_constants.card_board_height;
+
+      ci::Rectf r2{x3, y3, x4, y4};
+      ci::gl::draw(get_texture(L"icon-attack.png"), r2);
+
+      ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
+      ci::gl::drawStrokedRoundedRect(hand_area, 20.0f, 10.0f);
+
+      std::lock_guard lk{m_mutex};
+      m_ui_action.add(uiact::hovered_player, player.uid);
+    });
 
     auto f = make_frame(hand_area);
     f.align_horizontal(horizontal_alignment_t::center);
@@ -764,89 +829,37 @@ void cind_display_engine::display_hand2(
       ci::gl::draw(get_texture(L"icon-gem.png"), rect);
       aura::draw_line(rect, std::to_string(player.mana) + "/" + std::to_string(player.starting_mana));
     });
-    f.add_element(80.0f, 30.0f, [&](auto const& rect)
+    f.add_element(120.0f, 30.0f, [&](auto const& rect)
     {
-      if (is_current_player)
-      {
-        ci::gl::draw(get_texture(L"end-turn-bar.png"), rect);
-        aura::draw_line(rect, "END TURN");
-      }
-      else
-      {
-        ci::gl::draw(get_texture(L"waiting-bar.png"), rect);
-        aura::draw_line(rect, "WAITING");
-      }
-    });
-    f.arrange_horizontally();
-  });
-#if 0
-  win_frame.add_element(m_constants.window_width, m_constants.board_lane_marker_height, [&](auto const& hand_area)
-  {
-    auto const max_health_bar_width = 50.0f * player.starting_health;
-    auto const actual_health_bar_width = ((float)player.health / player.starting_health) * max_health_bar_width;
-    auto const lcenter = lcenter_for(actual_health_bar_width);
-
-    auto const [x1, x2] = std::minmax(lcenter, lcenter + actual_health_bar_width);
-    auto const [x3, x4] = std::minmax(lcenter_for(max_health_bar_width), lcenter_for(max_health_bar_width) + max_health_bar_width);
-
-    auto const [y1, y2] = std::minmax(hand_area.y1, hand_area.y2);
-    //auto const [y1, y2] = std::minmax(cur_pos_y, cur_pos_y + (sign * m_constants.board_lane_marker_height));
-
-    ci::Rectf reduced_rect{x1, y1, x2, y2};
-    ci::Rectf max_rect{x3, y1, x4, y2};
-    //ci::Rectf rect{cur_pos_x + (remaining_width / 2), y1,  cur_pos_x + (remaining_width / 2) + 500, y2};
-
-    {
-      ci::gl::ScopedColor col{0.1, 0.1, 0.1, 1.0};
-      ci::gl::drawSolidRoundedRect(max_rect, 10, 10);
-    }
-
-    if (reduced_rect.contains({m_constants.mouse_x, m_constants.mouse_y}))
-    {
-      ci::gl::ScopedColor col{0.0, 0.5, 0.0, 1.0};
-      ci::gl::drawSolidRoundedRect(reduced_rect, 10, 10);
-
-      std::lock_guard lk{m_mutex};
-      m_ui_action.add(uiact::hovered_player, player.uid);
-    }
-    else
-    {
-      ci::gl::ScopedColor col{0.0, 0.4, 0.0, 1.0};
-      ci::gl::drawSolidRoundedRect(reduced_rect, 10, 10);
-    }
-
-    auto const str = stringprintf<64>("Player | Health: %d / %d | Mana: %d", player.health, player.starting_health, player.mana);
-    display_text(str, max_rect, {0.9, 0.9, 0.9, 1.0}, max_rect.getHeight(), true);
-  });
-#endif
-
-  // end turn button
-  win_frame.add_element(m_constants.window_width, m_constants.board_lane_marker_height + 2*m_constants.board_vertical_padding, [&](auto const& hand_area)
-  {
-    auto const [x1, x2] = std::minmax(lcenter_for(120), lcenter_for(120) + 120);
-    auto const top_sign = top ? 1.0f : -1.0f;
-    auto const [y1, y2] = std::minmax(hand_area.y1 + m_constants.board_vertical_padding, hand_area.y1 + (top_sign * m_constants.board_lane_marker_height));
-
-    ci::Rectf end_turn_rect{x1, y1,  x2, y2};
 
     if (is_current_player)
     {
-      if (end_turn_rect.contains({m_constants.mouse_x, m_constants.mouse_y}))
+      if (rect.contains({m_constants.mouse_x, m_constants.mouse_y}))
       {
         ci::gl::ScopedColor col{1.0, 0.0, 0.0, 1.0};
-        ci::gl::drawSolidRoundedRect(end_turn_rect, 10, 10);
+        ci::gl::drawSolidRoundedRect(rect, 10, 10);
         std::lock_guard lk{m_mutex};
         m_ui_action.add(uiact::hovered_end_turn, 0);
       }
       else
       {
         ci::gl::ScopedColor col{0.4, 0.4, 0.4, 1.0};
-        ci::gl::drawSolidRoundedRect(end_turn_rect, 10, 10);
+        ci::gl::drawSolidRoundedRect(rect, 10, 10);
       }
-      display_text(std::string{"END TURN"}, end_turn_rect, {0.9, 0.9, 0.9, 1.0}, end_turn_rect.getHeight(), true);
+      display_text(std::string{"END TURN"}, rect, {0.9, 0.9, 0.9, 1.0}, rect.getHeight(), true);
     }
+    else
+    {
+      {
+        ci::gl::ScopedColor col{0.9, 0.9, 0.4, 1.0};
+        ci::gl::drawSolidRoundedRect(rect, 10, 10);
+      }
+      display_text(std::string{"WAITING"}, rect, {0.1, 0.1, 0.1, 1.0}, rect.getHeight(), true);
+    }
+    });
+    f.arrange_horizontally();
   });
-  
+
   // lanes
   auto const lane_height = (m_constants.card_board_height * 4) + (m_constants.board_vertical_padding * 8);
   auto const lane_width = (m_constants.card_board_width * 4) + (m_constants.board_horizontal_padding * 8);
