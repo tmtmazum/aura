@@ -16,7 +16,7 @@ void draw_line(ci::Rectf const& rect, std::string const& text, bool center)
   box.font(ci::Font{"Cambria", (rect.getHeight()) * 1.5f});
   box.text(text);
   box.size(rect.getSize());
-  box.color({0.0f, 0.0f, 0.0f, 1.0f});
+  box.color({0.1f, 0.1f, 0.1f, 1.0f});
 
   if (center)
   {

@@ -67,6 +67,15 @@ public:
     ci::Rectf const &bounds,
     bool is_current_player);
 
+  void display_tile_overlay(
+    player_info const& player,
+    bool top,
+    bool is_current_player,
+    int lane_no,
+    int lane_index,
+    terrain_types tile_terrain,
+    ci::Rectf const& tile_rect);
+
   void display_tile(player_info const& player,
     bool top,
     bool is_current_player,
