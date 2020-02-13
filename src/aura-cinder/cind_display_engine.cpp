@@ -493,7 +493,7 @@ void cind_display_engine::display_tile_overlay(
       m_hovered_description = to_string(tile_terrain);
       if (m_selected_card && m_selected_card->prefers_terrain(tile_terrain))
       {
-        m_hovered_description += " (preferred: +1 defense)";
+        m_hovered_description += " (terrain bonus: +1 defense)";
         ci::gl::ScopedColor col{0.0f, 1.0f, 0.0f, 1.0f};
         ci::gl::drawStrokedRoundedRect(tile_rect, 5.0f);
       }
@@ -549,11 +549,17 @@ void cind_display_engine::display_tile_overlay(
     return;
   }
 
-  if ((m_ui_action.is(cind_action_type::selected_lane_card) ||
-       m_ui_action.is(cind_action_type::selected_hand_card)) &&
-      (player.lanes[lane_no].size() - 1) == normalized_lane_index)
+  if (m_ui_action.is(cind_action_type::selected_lane_card) ||
+       m_ui_action.is(cind_action_type::selected_hand_card))
   {
-    if (m_selected_card && m_selected_card->can_heal())
+    if ((player.lanes[lane_no].size() - 1) != normalized_lane_index)
+    {
+      ci::gl::draw(get_texture(L"tile-not-allowed.png"), tile_rect);
+
+      ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
+      ci::gl::drawStrokedRoundedRect(tile_rect, 5.0f);
+    }
+    else if (m_selected_card && m_selected_card->can_heal())
     {
       ci::gl::draw(get_texture(L"icon-heal.png"), tile_rect);
 
@@ -615,6 +621,11 @@ void cind_display_engine::display_tile(
     return;
   }
 
+  if (player.lanes[lane_no].empty() && normalized_lane_index == 0)
+  {
+    ci::gl::draw(get_texture(texture_name), tile_rect);
+  }
+
   m_is_tile_revealed[lane_no][normalized_lane_index] = true;
 
   auto& card = player.lanes[lane_no][normalized_lane_index];
@@ -656,6 +667,59 @@ void cind_display_engine::display_tile(
   {
     index++;
   }
+}
+
+void cind_display_engine::display_player_overlay(ci::Rectf const& hand_area, player_info const& player)
+{
+  if (!hand_area.contains({m_constants.mouse_x, m_constants.mouse_y}))
+  {
+    return;
+  }
+
+  if (!m_selected_card)
+  {
+    return;
+  }
+  
+  if (!m_selected_card->can_attack())
+  {
+    std::lock_guard lk{m_mutex};
+    m_hovered_description = player.name + ": no actions possible at this time";
+    return;
+  }
+
+  if (m_session_info->players[m_session_info->current_player].uid == player.uid)
+  {
+    std::lock_guard lk{m_mutex};
+    m_hovered_description = "Player: can't attack self";
+    return;
+  }
+
+  auto x3 = m_constants.window_width/2.0f - m_constants.card_board_width/2.0f;
+  auto x4 = x3 + m_constants.card_board_width;
+  auto y3 = hand_area.y1;
+  auto y4 = y3 + m_constants.card_board_height;
+
+  ci::Rectf r2{x3, y3, x4, y4};
+
+  if (!player.has_free_lane())
+  {
+    ci::gl::draw(get_texture(L"tile-not-allowed.png"), r2);
+    {
+      ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
+      ci::gl::drawStrokedRoundedRect(hand_area, 20.0f, 10.0f);
+    }
+    std::lock_guard lk{m_mutex};
+    m_hovered_description = player.name + ": no free lane available to attack";
+    return;
+  }
+  ci::gl::draw(get_texture(L"icon-attack.png"), r2);
+
+  ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
+  ci::gl::drawStrokedRoundedRect(hand_area, 20.0f, 10.0f);
+
+  std::lock_guard lk{m_mutex};
+  m_ui_action.add(uiact::hovered_player, player.uid);
 }
 
 void cind_display_engine::display_hand2(
@@ -761,55 +825,6 @@ void cind_display_engine::display_hand2(
   {
     ci::gl::draw(get_texture(L"player-bar.png"), hand_area);
 
-    // attacking the opponent champion
-    std::invoke([&]
-    {
-      if (!hand_area.contains({m_constants.mouse_x, m_constants.mouse_y}))
-      {
-        return;
-      }
-
-      if (!m_selected_card)
-      {
-        return;
-      }
-      
-      if (!m_selected_card->can_attack())
-      {
-        std::lock_guard lk{m_mutex};
-        m_hovered_description = player.name + ": no actions possible at this time";
-        return;
-      }
-
-      if (m_session_info->players[m_session_info->current_player].uid == player.uid)
-      {
-        std::lock_guard lk{m_mutex};
-        m_hovered_description = "Player: can't attack self";
-        return;
-      }
-
-      if (!player.has_free_lane())
-      {
-        std::lock_guard lk{m_mutex};
-        m_hovered_description = player.name + ": no free lane available to attack";
-        return;
-      }
-
-      auto x3 = m_constants.window_width/2.0f - m_constants.card_board_width/2.0f;
-      auto x4 = x3 + m_constants.card_board_width;
-      auto y3 = hand_area.y1;
-      auto y4 = y3 + m_constants.card_board_height;
-
-      ci::Rectf r2{x3, y3, x4, y4};
-      ci::gl::draw(get_texture(L"icon-attack.png"), r2);
-
-      ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
-      ci::gl::drawStrokedRoundedRect(hand_area, 20.0f, 10.0f);
-
-      std::lock_guard lk{m_mutex};
-      m_ui_action.add(uiact::hovered_player, player.uid);
-    });
-
     auto f = make_frame(hand_area);
     f.align_horizontal(horizontal_alignment_t::center);
     f.align_vertical(vertical_alignment_t::center);
@@ -858,6 +873,9 @@ void cind_display_engine::display_hand2(
     }
     });
     f.arrange_horizontally();
+
+    // attacking the opponent champion
+    display_player_overlay(hand_area, player);
   });
 
   // lanes
@@ -886,12 +904,19 @@ void cind_display_engine::display_hand2(
       g2.set_reverse(top);
 
       int lane_index = 0;
-      g2.arrange_vertically(item, [&](auto const& tile_terrain, auto const& tile_rect)
+      g2.arrange(1, m_ruleset.max_lane_height, [&](auto const& tile_rect)
       {
+        auto const& tile_terrain = item[top ? lane_index : (item.size() - lane_index - 1)];
         display_tile(player, top, is_current_player, lane_no, lane_index, tile_terrain, tile_rect);
         display_tile_overlay(player, top, is_current_player, lane_no, lane_index, tile_terrain, tile_rect);
         lane_index++;
       });
+      //g2.arrange_vertically(item, [&](auto const& tile_terrain, auto const& tile_rect)
+      //{
+      //  display_tile(player, top, is_current_player, lane_no, lane_index, tile_terrain, tile_rect);
+      //  display_tile_overlay(player, top, is_current_player, lane_no, lane_index, tile_terrain, tile_rect);
+      //  lane_index++;
+      //});
       lane_no++;
     });
 
@@ -913,10 +938,6 @@ void cind_display_engine::display_hand2(
         ci::gl::translate(sub_rect.x1, sub_rect.y1);
         //ci::gl::rotate(-3.14159f * 0.5f);
         ci::gl::scale(0.2f, 0.2f);
-
-#if 0
-        display_card_full(sub_item);
-#endif
       });
     });
   });
@@ -1401,7 +1422,7 @@ bool cind_display_engine::display_health(ci::Rectf const& target, float scale, i
     ci::Rectf sub_rect{0.0f, 0.0f, 40.0f, 40.0f};
 
     ci::gl::draw(get_texture(L"icon-health.png"), sub_rect);
-    aura::draw_line(sub_rect, std::to_string(card.health));
+    aura::draw_line(sub_rect, card.health_as_string());
   });
 
   return true;
@@ -1432,6 +1453,16 @@ bool cind_display_engine::display_preferred_terrain(ci::Rectf const& target, flo
   return true;
 }
 
+void cind_display_engine::display_card_texture(ci::gl::Texture2dRef const& t) const
+{
+  auto [x1, x2] = std::minmax(0.0f, m_constants.highlight_descr_width);
+  auto [y1, y2] = std::minmax(0.0f, m_constants.highlight_descr_height);
+
+  ci::Rectf rect{x1, y1, x2, y2};
+  
+  ci::gl::draw(t, rect);
+}
+
 void cind_display_engine::display_card_full(card_info const& card) const
 {
   auto const mid_height = m_constants.window_height/2.0f;
@@ -1444,15 +1475,6 @@ void cind_display_engine::display_card_full(card_info const& card) const
   {
     ci::gl::draw(hovered_card_texture(card), rect);
   }
-
-#if 0
-  // draw hover highlight
-  auto const coord = ci::gl::windowToObjectCoord({m_constants.mouse_x, m_constants.mouse_y});
-  if (rect.contains(coord))
-  {
-    ci::gl::draw(get_texture(L"card-highlight.png"), rect);
-  }
-#endif
 
   // show name
   {
@@ -1518,8 +1540,6 @@ void cind_display_engine::display_selected_card() const
 
     display_card_full(m_selected_card.value());
   }
-
-  
 }
 
 void cind_display_engine::display_hovered_card() const
@@ -1527,21 +1547,36 @@ void cind_display_engine::display_hovered_card() const
   auto const mid_height = m_constants.window_height/2.0f;
 
   auto [x1, x2] = std::minmax(m_constants.window_width - m_constants.highlight_descr_width, m_constants.window_width);
+
   auto [y1, y2] = m_selected_card
     ? std::minmax(mid_height - m_constants.board_vertical_padding, mid_height - (m_constants.board_vertical_padding + m_constants.highlight_descr_height))
     : std::minmax(mid_height - m_constants.highlight_descr_height/2.0f, mid_height + m_constants.highlight_descr_height/2.0f);
+
   ci::Rectf rect{x1, y1, x2, y2};
+
+  auto const en_rect = rect.inflated({40.0f, 40.0f});
+
+  // if the mouse overlaps with the hover region, we want to display on the left instead
+  bool display_on_left = false;
+  if (en_rect.contains({m_constants.mouse_x, m_constants.mouse_y}))
+  {
+    display_on_left = true;
+    rect.x1 = 0.0f;
+    rect.x2 = m_constants.highlight_descr_width;
+  };
 
   {
     ci::gl::ScopedModelMatrix mat{};
-    ci::gl::translate(x1, y1);
+    ci::gl::translate(rect.x1, rect.y1);
 
     display_card_full(*m_hovered_card);
   }
 
   if (m_selected_card)
   {
-    auto x3 = m_constants.window_width - m_constants.highlight_descr_width/2.0f - m_constants.card_board_width/2.0f;
+    auto x3 = display_on_left
+      ? m_constants.highlight_descr_width/2.0f - m_constants.card_board_width/2.0f
+      : m_constants.window_width - m_constants.highlight_descr_width/2.0f - m_constants.card_board_width/2.0f;
     auto x4 = x3 + m_constants.card_board_width;
     auto y3 = mid_height - m_constants.card_board_height/2.0f;
     auto y4 = y3 + m_constants.card_board_height;
@@ -1626,85 +1661,26 @@ void cind_display_engine::display_picks()
     g.arrange_horizontally(m_session_info->picks, [&](auto const& card, auto const& element)
     {
       bool const hovered = element.contains(ci::vec2{m_constants.mouse_x, m_constants.mouse_y});
-      if (hovered)
-      {
-        std::lock_guard lk{m_mutex};
-        m_ui_action.add(uiact::hovered_pick_card, card.uid);
-        m_hovered_description = ci::msw::toUtf8String(card.name);
-        m_hovered_card = &card;
-      }
 
       ci::gl::ScopedModelMatrix mat{};
       ci::gl::translate(element.getX1(), element.getY1());
       ci::gl::scale(0.5f, 0.5f);
 
       display_card_full(card);
-      //display_hand_card(card, element, hovered ? selection::hovered : selection::passive, true);
-    });
-  });
-  f.arrange_vertically();
 
-}
-
-#if 0
-void cind_display_engine::display_picks()
-{
-  if (m_session_info->picks.empty())
-  {
-    return;
-  }
-
-  auto [x1, x2] = std::minmax(0.0f, m_constants.window_width);
-  auto const y_start = (m_constants.window_height - m_constants.pick_modal_height) / 2;
-  auto [y1, y2] = std::minmax(y_start, y_start + m_constants.pick_modal_height);
-  ci::Rectf modal_area{x1, y1, x2, y2};
-  {
-    ci::gl::ScopedColor col{0.1, 0.1, 0.1, 0.6};
-    ci::gl::drawSolidRect(modal_area);
-  }
-
-  auto f = make_frame(modal_area);
-  f.align_horizontal(horizontal_alignment_t::center);
-  f.align_vertical(vertical_alignment_t::center);
-  f.add(500.0f, 100.0f, [&](auto const& rect)
-  {
-    auto& player = m_session_info->players[m_session_info->current_player];
-    auto const num_draws = player.picks_available; //player.num_draws_per_turn - player.num_drawn_this_turn;
-    auto const text = stringprintf<64>("Turn %d\nPlayer %d, pick %d card%c: ", m_session_info->turn,
-      m_session_info->current_player + 1, num_draws, num_draws > 1 ? 's' : ' ');
-    display_text(text, rect, {0.9, 0.9, 0.9, 1.0}, rect.getHeight() / 2, true);
-    auto const col = ci::gl::ScopedColor{1.0, 0.0, 0.0, 1.0};
-    ci::gl::drawStrokedRect(rect);
-  });
-
-  auto g = make_grid(modal_area);
-  g.set_padding(m_constants.hand_horizontal_padding, m_constants.hand_vertical_padding);
-  g.set_element_size(m_constants.card_hand_width, m_constants.card_hand_height);
-  g.align_vertical(vertical_alignment_t::center);
-  g.align_horizontal(horizontal_alignment_t::center);
-
-  auto [grid_x, grid_y] = g.measure(m_session_info->picks.size(), 1);
-
-  f.add(grid_x, grid_y, [&](auto const& rect)
-  {
-    g.bounds = rect;    
-    g.arrange_horizontally(m_session_info->picks, [&](auto const& card, auto const& element)
-    {
-      bool const hovered = element.contains(ci::vec2{m_constants.mouse_x, m_constants.mouse_y});
       if (hovered)
       {
+        display_card_texture(get_texture(L"card-highlight.png"));
+
         std::lock_guard lk{m_mutex};
         m_ui_action.add(uiact::hovered_pick_card, card.uid);
         m_hovered_description = ci::msw::toUtf8String(card.name);
         m_hovered_card = &card;
       }
-
-      display_hand_card(card, element, hovered ? selection::hovered : selection::passive, true);
     });
   });
   f.arrange_vertically();
 }
-#endif
 
 void cind_display_engine::display_background() const
 {

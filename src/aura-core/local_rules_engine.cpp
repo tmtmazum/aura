@@ -201,7 +201,7 @@ terrain_t local_rules_engine::generate_terrain()
   for (int i = 0; i < m_rules.num_lanes; ++i)
   {
     std::vector<terrain_types> v;
-    for (int j = 0; j < m_rules.max_lane_height; ++j)
+    for (int j = 0; j < m_rules.max_lane_height * 2; ++j)
     {
       auto const n = rand() % static_cast<int>(terrain_types::total);
       v.emplace_back(static_cast<terrain_types>(n));

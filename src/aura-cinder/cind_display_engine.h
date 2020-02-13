@@ -120,10 +120,13 @@ public:
 
   bool display_preferred_terrain(ci::Rectf const& target, float scale, int index, card_info const& card) const;
 
+  void display_player_overlay(ci::Rectf const& hand_area, player_info const& player);
+
   bool display_health(ci::Rectf const& target, float scale, int index, card_info const& card) const;
 
   bool display_strength(ci::Rectf const& target, float scale, int index, card_info const& card) const;
 
+  void display_card_texture(ci::gl::Texture2dRef const& t) const;
   void display_card_full(card_info const&) const;
 
   void display_selected_card() const;

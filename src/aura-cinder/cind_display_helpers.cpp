@@ -108,6 +108,7 @@ void draw_multiline(ci::Rectf const& rect, std::string const& text, bool center)
 
   auto const final_font = std::invoke([&]
   {
+    return ci::Font{"Cambria", 20.0f};
     //for (auto scale_factor = 1.5f; scale_factor > 0.1f; scale_factor = scale_factor - 0.02f)
     for (auto font_size = 40.0f; font_size > 1.0f; font_size -= 1.0f)
     {

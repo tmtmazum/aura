@@ -41,6 +41,12 @@ struct card_info
     return on_preferred_terrain ? health + 1 : health;
   }
 
+  auto health_as_string() const noexcept
+  {
+    auto const s = std::to_string(health);
+    return on_preferred_terrain ? s + "+1" : s;
+  }
+
   //! Returns effective strength (including terrain bonuses)
   auto effective_strength() const noexcept
   {
@@ -49,6 +55,12 @@ struct card_info
       return strength;
     }
     return on_preferred_terrain ? strength + 1 : strength;
+  }
+
+  auto strength_as_string() const noexcept
+  {
+    auto const s = std::to_string(std::abs(strength));
+    return on_preferred_terrain ? s + "+1" : s;
   }
 
   bool has_trait(unit_traits criteria) const noexcept
