@@ -65,11 +65,6 @@ public:
                                 bool redraw) override;
 
  private:
-  void display_hand(
-    std::vector<card_info> const &hand,
-    ci::Rectf const &bounds,
-    bool is_current_player);
-
   void display_tile_overlay(
     player_info const& player,
     bool top,
@@ -87,16 +82,28 @@ public:
     terrain_types tile_terrain,
     ci::Rectf const& tile_rect);
 
-  void display_hand2(
+  void display_player_lanes(
+    player_info const& player,
+    bool top,
+    bool is_current_player,
+    ci::Rectf const& hand_area);
+
+  void display_player_stats(
+    player_info const& player,
+    bool top,
+    bool is_current_player,
+    ci::Rectf const& hand_area);
+
+  void display_player_hand(
+    player_info const& player,
+    bool top,
+    bool is_current_player,
+    ci::Rectf const& hand_area);
+
+  void display_player(
     player_info const& player,
     bool top,
     bool is_current_player);
-
-
-  void display_lanes(player_info const& player,
-                     ci::Rectf const& bounds,
-                     bool is_current,
-                     bool reverse_y = false);
 
   void display_player_top(player_info const& player, bool is_current);
 
@@ -107,12 +114,6 @@ public:
   ci::gl::Texture2dRef choose_texture(terrain_types t) const noexcept;
 
   void display_terrain();
-
-  void display_hand_card(card_info const& card, ci::Rectf const& rect, selection sel, bool is_current_player) const;
-
-  void display_lane_card(card_info const& info, ci::Rectf const& bounds, selection s) const;
-
-  void display_lane_marker(int i, ci::Rectf const&);
 
   void display_text(std::string const& text, ci::Rectf const&, ci::ColorAf const& , float point_size, bool) const;
 
