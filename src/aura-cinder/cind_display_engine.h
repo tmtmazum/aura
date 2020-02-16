@@ -121,7 +121,7 @@ public:
 
   bool display_preferred_terrain(ci::Rectf const& target, float scale, int index, card_info const& card) const;
 
-  void display_player_overlay(ci::Rectf const& hand_area, player_info const& player);
+  void display_player_overlay(ci::Rectf const& hand_area, player_info const& player, bool is_current_player);
 
   bool display_health(ci::Rectf const& target, float scale, int index, card_info const& card) const;
 

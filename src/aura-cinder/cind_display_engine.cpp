@@ -216,8 +216,6 @@ void cind_display_engine::display_tile_overlay(
   }
   m_hovered_description = ci::msw::toUtf8String(card.name);
 
-  m_ui_action.add(uiact::hovered_lane_card, card.uid);
-
   if (is_selected)
   {
     return;
@@ -225,58 +223,51 @@ void cind_display_engine::display_tile_overlay(
 
   m_hovered_card = &card;
 
-  if (is_current_player && card.can_act())
-  {
-    ci::gl::draw(get_texture(L"tile-highlight.png"), tile_rect);
-    return;
-  }
-
   if (m_ui_action.is(cind_action_type::selected_lane_card) ||
        m_ui_action.is(cind_action_type::selected_hand_card))
   {
-    if ((player.lanes[lane_no].size() - 1) != normalized_lane_index)
+    bool in_sight = (m_selected_card && m_selected_card->action_type == card_action_type::ranged_attack)
+      || ((player.lanes[lane_no].size() - 1) == normalized_lane_index);
+
+    bool can_target = in_sight && m_selected_card && 
+      ((m_selected_card->can_target_enemy() && !is_current_player)
+      || (m_selected_card->can_target_friendly() && is_current_player)); 
+
+    if (can_target)
     {
+      auto const texture = std::invoke([&]
+      {
+        switch (m_selected_card->action_type)
+        {
+          case card_action_type::melee_attack: return L"tile-attack.png";
+          case card_action_type::ranged_attack: return L"tile-attack.png";
+          case card_action_type::healer: return L"icon-heal.png";
+          case card_action_type::spell: return L"tile-attack.png";
+        }
+        return L"tile-attack.png";
+      });
+      ci::gl::draw(get_texture(texture), tile_rect);
+
+      ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
+      ci::gl::drawStrokedRoundedRect(tile_rect, 5.0f);
+      m_ui_action.add(uiact::hovered_lane_card, card.uid);
+    }
+    else
+    {
+      if (m_selected_card)
+      {
+        AURA_LOG(L"%ls: %d %d %d", m_selected_card->name.c_str(), m_selected_card->action_targets, m_selected_card->action_type, in_sight);
+      }
       ci::gl::draw(get_texture(L"tile-not-allowed.png"), tile_rect);
 
       ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
       ci::gl::drawStrokedRoundedRect(tile_rect, 5.0f);
     }
-    else if (m_selected_card && m_selected_card->can_target_enemy() && !is_current_player)
-    {
-      auto const texture = std::invoke([&]
-      {
-        switch (m_selected_card->action_type)
-        {
-          case card_action_type::melee_attack: return L"tile-attack.png";
-          case card_action_type::ranged_attack: return L"tile-attack.png";
-          case card_action_type::healer: return L"icon-heal.png";
-          case card_action_type::spell: return L"tile-attack.png";
-        }
-        return L"tile-attack.png";
-      });
-      ci::gl::draw(get_texture(texture), tile_rect);
-
-      ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
-      ci::gl::drawStrokedRoundedRect(tile_rect, 5.0f);
-    }
-    else if (m_selected_card && m_selected_card->can_target_friendly() && is_current_player)
-    {
-      auto const texture = std::invoke([&]
-      {
-        switch (m_selected_card->action_type)
-        {
-          case card_action_type::melee_attack: return L"tile-attack.png";
-          case card_action_type::ranged_attack: return L"tile-attack.png";
-          case card_action_type::healer: return L"icon-heal.png";
-          case card_action_type::spell: return L"tile-attack.png";
-        }
-        return L"tile-attack.png";
-      });
-      ci::gl::draw(get_texture(texture), tile_rect);
-
-      ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
-      ci::gl::drawStrokedRoundedRect(tile_rect, 5.0f);
-    }
+  }
+  else if (card.can_act() && is_current_player)
+  {
+    ci::gl::draw(get_texture(L"tile-highlight.png"), tile_rect);
+    m_ui_action.add(uiact::hovered_lane_card, card.uid);
   }
 }
 
@@ -363,7 +354,7 @@ void cind_display_engine::display_tile(
   }
 }
 
-void cind_display_engine::display_player_overlay(ci::Rectf const& hand_area, player_info const& player)
+void cind_display_engine::display_player_overlay(ci::Rectf const& hand_area, player_info const& player, bool is_current_player)
 {
   if (!hand_area.contains({m_constants.mouse_x, m_constants.mouse_y}))
   {
@@ -375,14 +366,14 @@ void cind_display_engine::display_player_overlay(ci::Rectf const& hand_area, pla
     return;
   }
   
-  if (!m_selected_card->can_target_enemy())
+  if (!is_current_player && !m_selected_card->can_target_enemy())
   {
     std::lock_guard lk{m_mutex};
     m_hovered_description = player.name + ": no actions possible at this time";
     return;
   }
 
-  if (m_session_info->players[m_session_info->current_player].uid == player.uid)
+  if (is_current_player && !m_selected_card->can_target_friendly())
   {
     std::lock_guard lk{m_mutex};
     m_hovered_description = "Player: can't attack self";
@@ -396,7 +387,7 @@ void cind_display_engine::display_player_overlay(ci::Rectf const& hand_area, pla
 
   ci::Rectf r2{x3, y3, x4, y4};
 
-  if (!player.has_free_lane())
+  if (!player.has_free_lane() && m_selected_card->action_type != card_action_type::ranged_attack)
   {
     ci::gl::draw(get_texture(L"tile-not-allowed.png"), r2);
     {
@@ -558,7 +549,7 @@ void cind_display_engine::display_player_stats(
   f.arrange_horizontally();
 
   // attacking the opponent champion
-  display_player_overlay(hand_area, player);
+  display_player_overlay(hand_area, player, is_current_player);
 }
 
 void cind_display_engine::display_player_lanes(
@@ -1137,35 +1128,6 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
   std::lock_guard lk{m_mutex};
 
   AURA_LOG(L"+ 0x%x", m_ui_action.type);
-  {
-
-    int i = 0;
-    for (auto const& ii : m_session_info->terrain)
-    {
-      int j = 0;
-      for (auto const& jj : ii)
-      {
-        AURA_LOG(L"Terrain [%d][%d] = %hs", i, j, to_string(jj).c_str());
-        j++;
-      }
-      i++;
-    }
-
-    for (int p = 0; p < 2; ++p)
-    {
-      for (int lane_num = 0; lane_num < m_ruleset.num_lanes; ++lane_num)
-      {
-        for (int tile_num = 0; tile_num < m_session_info->players[p].lanes[lane_num].size(); ++tile_num)
-        {
-          auto const& lane = m_session_info->terrain[lane_num];
-          AURA_LOG(L"lane %d size = %zu", lane_num, lane.size());
-          auto const h = p ? (lane.size() - 1 - tile_num) : tile_num;
-          auto const& t = lane[h];
-          AURA_LOG(L"terrain [%d][%d][%d] = [%d][%d] = %hs", p, lane_num, tile_num, lane_num, h, to_string(t).c_str());
-        }
-      }
-    }
-  }
 
   auto const start_animation = [&]()
   {

@@ -30,9 +30,10 @@ enum class card_action_type
 enum class card_action_targets
 {
   none,
-  friendly,
-  enemy,
-  both
+  friendly = 0x1,
+  enemy = 0x2,
+  both = 0x1 | 0x2,
+  friendly_hero // player
 };
 
 struct card_info

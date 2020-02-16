@@ -33,13 +33,15 @@ inline card_action_t generic_bard()
 {
   return [](auto& re, session_info& session, card_info& card_actor, card_info& target)
   {
+    AURA_LOG(L"%ls energy (before): %d", card_actor.name.c_str(), card_actor.energy);
     LEGAL_ASSERT(!card_actor.is_resting(), L"Player cannot take action when resting");
     LEGAL_ASSERT(target.is_resting(), L"Targetted unit is already ready for action");
     LEGAL_ASSERT(!target.has_trait(unit_traits::structure), L"Healer cannot repair structures!");
 
-    target.energy = target.starting_energy;
+    target.energy++;
 
     card_actor.energy--;
+    AURA_LOG(L"%ls energy (after): %d", card_actor.name.c_str(), card_actor.energy);
     return std::error_code{};
   };
 }
