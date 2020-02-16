@@ -14,28 +14,6 @@ namespace aura
 
 enum class unit_traits : int;
 
-//! affects what symbol is shown when highlighting 
-//! other (target) cards while this card is selected.
-enum class card_action_type
-{
-  melee_attack,
-  ranged_attack,
-  healer,
-  spell,
-  none
-};
-
-//! affects what other cards can be targetted while this
-//! one is selected
-enum class card_action_targets
-{
-  none,
-  friendly = 0x1,
-  enemy = 0x2,
-  both = 0x1 | 0x2,
-  friendly_hero // player
-};
-
 struct card_info
 {
   int uid; //!< unique in-game identifer given by rules engine
@@ -53,6 +31,7 @@ struct card_info
 
   bool is_visible{true}; //!< this unit can be targetted for an action
   bool on_preferred_terrain{false}; //!< whether this unit is standing on preferred terrain or not
+  terrain_types current_terrain;
 
   std::wstring name;
   std::wstring description;
@@ -71,14 +50,25 @@ struct card_info
     return on_preferred_terrain ? s + "+1" : s;
   }
 
+  bool prefers_terrain(terrain_types t) const noexcept
+  {
+    return std::any_of(begin(preferred_terrain), end(preferred_terrain),
+      [&](auto const tt) { return tt == t; });
+  }
+
   //! Returns effective strength (including terrain bonuses)
-  auto effective_strength() const noexcept
+  auto effective_strength(terrain_types t) const noexcept
   {
     if (strength < 0)
     { // healer
       return strength;
     }
-    return on_preferred_terrain ? strength + 1 : strength;
+
+    if (prefers_terrain(t))
+    {
+      return strength + 1;
+    }
+    return strength;
   }
 
   auto strength_as_string() const noexcept
@@ -118,10 +108,10 @@ struct card_info
   }
 
   bool can_be_deployed() const noexcept { return !has_trait(unit_traits::item); }
-  bool prefers_terrain(terrain_types t)
+
+  std::wstring get_hovered_description() const noexcept
   {
-    return std::any_of(begin(preferred_terrain), end(preferred_terrain),
-      [&](auto const tt) { return tt == t; });
+    return name;
   }
 
   virtual ~card_info() = default;

@@ -58,30 +58,6 @@ std::string format_card_descr(rules_engine const& re, card_info const& card)
     //s += "\n";
   }
 
-#if 0
-  if (card.strength)
-  {
-    s += "\nStrength: ";
-    s += format_strength(card);
-  }
-
-  {
-    s += "\nHealth: ";
-    s += std::to_string(card.effective_strength());
-  }
-
-  {
-    s += "\nCost: ";
-    s += std::to_string(card.cost);
-  }
-
-  if (auto const pref_terrain = to_string(card.preferred_terrain); !pref_terrain.empty())
-  {
-    s += "\nPreferred Terrain: ";
-    s += pref_terrain;
-  }
-#endif
-
   for (auto const& trait : card.traits)
   {
     if (auto d = re.describe(trait); !d.empty())
@@ -169,7 +145,7 @@ void cind_display_engine::display_tile_overlay(
       && is_next_tile_in_lane
       && m_selected_card && m_selected_card->can_be_deployed())
     {
-      ci::gl::draw(get_texture(L"icon-move.png"), tile_rect);
+      ci::gl::draw(get_texture(L"tile-move.png"), tile_rect);
 
       m_ui_action.add(uiact::hovered_lane, lane_no);
       m_hovered_description = to_string(tile_terrain);
@@ -214,10 +190,15 @@ void cind_display_engine::display_tile_overlay(
   {
     return;
   }
-  m_hovered_description = ci::msw::toUtf8String(card.name);
+  m_hovered_description = ci::msw::toUtf8String(card.get_hovered_description());
+  if (m_selected_card && m_selected_card->prefers_terrain(tile_terrain))
+  {
+    m_hovered_description += " (terrain bonus: +1 damage)";
+  }
 
   if (is_selected)
   {
+    m_ui_action.add(uiact::hovered_lane_card, card.uid);
     return;
   }
 
@@ -229,8 +210,8 @@ void cind_display_engine::display_tile_overlay(
     bool in_sight = (m_selected_card && m_selected_card->action_type == card_action_type::ranged_attack)
       || ((player.lanes[lane_no].size() - 1) == normalized_lane_index);
 
-    bool can_target = in_sight && m_selected_card && 
-      ((m_selected_card->can_target_enemy() && !is_current_player)
+    bool can_target = m_selected_card && 
+      ((m_selected_card->can_target_enemy() && !is_current_player && in_sight)
       || (m_selected_card->can_target_friendly() && is_current_player)); 
 
     if (can_target)
@@ -254,10 +235,10 @@ void cind_display_engine::display_tile_overlay(
     }
     else
     {
-      if (m_selected_card)
-      {
-        AURA_LOG(L"%ls: %d %d %d", m_selected_card->name.c_str(), m_selected_card->action_targets, m_selected_card->action_type, in_sight);
-      }
+      //if (m_selected_card)
+      //{
+      //  AURA_LOG(L"%ls: %d %d %d", m_selected_card->name.c_str(), m_selected_card->action_targets, m_selected_card->action_type, in_sight);
+      //}
       ci::gl::draw(get_texture(L"tile-not-allowed.png"), tile_rect);
 
       ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
@@ -373,7 +354,7 @@ void cind_display_engine::display_player_overlay(ci::Rectf const& hand_area, pla
     return;
   }
 
-  if (is_current_player && !m_selected_card->can_target_friendly())
+  if (is_current_player && !((int)m_selected_card->action_targets & (int)card_action_targets::friendly_hero))
   {
     std::lock_guard lk{m_mutex};
     m_hovered_description = "Player: can't attack self";
@@ -387,7 +368,7 @@ void cind_display_engine::display_player_overlay(ci::Rectf const& hand_area, pla
 
   ci::Rectf r2{x3, y3, x4, y4};
 
-  if (!player.has_free_lane() && m_selected_card->action_type != card_action_type::ranged_attack)
+  if (!is_current_player && !player.has_free_lane() && m_selected_card->action_type != card_action_type::ranged_attack)
   {
     ci::gl::draw(get_texture(L"tile-not-allowed.png"), r2);
     {
@@ -478,7 +459,7 @@ void cind_display_engine::display_player_hand(
         m_hovered_card = &item;
         if (playable)
         {
-          m_hovered_description = ci::msw::toUtf8String(item.name);
+          m_hovered_description = ci::msw::toUtf8String(item.get_hovered_description());
         }
         else
         {
@@ -511,13 +492,17 @@ void cind_display_engine::display_player_stats(
   f.add_element(40.0f, health_bar_h, [&](auto const& rect)
   {
     ci::gl::draw(get_texture(L"icon-health.png"), rect);
-    aura::draw_line(rect, std::to_string(player.health));
+    auto const r2 = rect.inflated({40.0f, 0.0f});
+    aura::draw_line(r2, std::to_string(player.health) + "/" + std::to_string(player.starting_health));
   });
+  f.add_element(40.0f, health_bar_h, [&](auto const& ){});
   f.add_element(40.0f, health_bar_h, [&](auto const& rect)
   {
     ci::gl::draw(get_texture(L"icon-gem.png"), rect);
-    aura::draw_line(rect, std::to_string(player.mana) + "/" + std::to_string(player.starting_mana));
+    auto const r2 = rect.inflated({40.0f, 0.0f});
+    aura::draw_line(r2, std::to_string(player.mana) + "/" + std::to_string(player.starting_mana));
   });
+  f.add_element(40.0f, health_bar_h, [&](auto const& ){});
   f.add_element(120.0f, 30.0f, [&](auto const& rect)
   {
 
@@ -639,7 +624,7 @@ void cind_display_engine::display_player(
 
   // health bar
   auto const health_bar_h = 40.0f;
-  win_frame.add_element(450.0f, health_bar_h, [&](auto const& hand_area)
+  win_frame.add_element(490.0f, health_bar_h, [&](auto const& hand_area)
   {
     display_player_stats(player, top, is_current_player, hand_area);
   });
@@ -828,7 +813,7 @@ bool cind_display_engine::display_strength(ci::Rectf const& target, float scale,
     ci::Rectf sub_rect{0.0f, 0.0f, 40.0f, 40.0f};
 
     ci::gl::draw(strength_texture, sub_rect);
-    auto const raw_strength = std::to_string(std::abs(card.effective_strength()));
+    auto const raw_strength = std::to_string(std::abs(card.strength));
     auto const str = card.starting_energy > 1 ? raw_strength + "x" + std::to_string(card.starting_energy) : raw_strength;
     aura::draw_line(sub_rect, str);
   });
@@ -1236,6 +1221,7 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
     && m_ui_action.is(uiact::hovered_lane_card)
     && m_ui_action.value(uiact::selected_lane_card) == m_ui_action.value(uiact::hovered_lane_card))
   {
+    AURA_LOG(L"Unsetting selected lane card");
     m_ui_action.rm(uiact::selected_lane_card);
     m_selected_card = {};
     return;

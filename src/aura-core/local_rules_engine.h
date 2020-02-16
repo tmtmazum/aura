@@ -27,7 +27,7 @@ public:
 
   card_info to_card_info(card_preset const& preset, int cid) override;
 
-  std::error_code trigger_pick_action(int num_picks, int num_choices) override;
+  std::error_code trigger_pick_action(int num_picks, int num_choices = 0) override;
   std::error_code ready_draft_picks();
   std::error_code trigger_draft_pick();
 

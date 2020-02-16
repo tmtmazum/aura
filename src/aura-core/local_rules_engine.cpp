@@ -169,44 +169,46 @@ card_info local_rules_engine::to_card_info(card_preset const& preset, int cid)
   info.energy = preset.energy;
   info.starting_energy = preset.energy;
   info.description = preset.special_descr;
-  info.action_type = std::invoke([&]
-  {
-    if (!preset.primary)
-    {
-      return card_action_type::none;
-    }
+  info.action_type = preset.action_type;
+  info.action_targets = preset.action_targets;
+  //info.action_type = std::invoke([&]
+  //{
+  //  if (!preset.primary)
+  //  {
+  //    return card_action_type::none;
+  //  }
 
-    if (info.has_trait(unit_traits::healer))
-    {
-      return card_action_type::healer;
-    }
+  //  if (info.has_trait(unit_traits::healer))
+  //  {
+  //    return card_action_type::healer;
+  //  }
 
-    if (info.has_trait(unit_traits::long_range))
-    {
-      return card_action_type::ranged_attack;
-    }
+  //  if (info.has_trait(unit_traits::long_range))
+  //  {
+  //    return card_action_type::ranged_attack;
+  //  }
 
-    if (info.strength > 0)
-    {
-      return card_action_type::melee_attack;
-    }
+  //  if (info.strength > 0)
+  //  {
+  //    return card_action_type::melee_attack;
+  //  }
 
-    return card_action_type::spell;
-  });
+  //  return card_action_type::spell;
+  //});
 
-  info.action_targets = std::invoke([&]
-  {
-    switch (info.action_type)
-    {
-    case card_action_type::melee_attack: return card_action_targets::enemy;
-    case card_action_type::ranged_attack: return card_action_targets::enemy;
-    case card_action_type::healer: return card_action_targets::friendly;
-    case card_action_type::spell: return card_action_targets::both;
-    case card_action_type::none: return card_action_targets::none;
-    }
+  //info.action_targets = std::invoke([&]
+  //{
+  //  switch (info.action_type)
+  //  {
+  //  case card_action_type::melee_attack: return card_action_targets::enemy;
+  //  case card_action_type::ranged_attack: return card_action_targets::enemy;
+  //  case card_action_type::healer: return card_action_targets::friendly;
+  //  case card_action_type::spell: return card_action_targets::both;
+  //  case card_action_type::none: return card_action_targets::none;
+  //  }
 
-    return card_action_targets::both;
-  });
+  //  return card_action_targets::both;
+  //});
 
   if (preset.primary)
   {
@@ -364,6 +366,7 @@ void local_rules_engine::apply_terrain_modifiers(int cur_player, int lane_num, i
       std::find(begin(card.preferred_terrain), end(card.preferred_terrain), t) != end(card.preferred_terrain);
 
   card.on_preferred_terrain = is_preferred;
+  card.current_terrain = t;
 #if 0
   if (is_preferred)
   {
@@ -447,7 +450,7 @@ std::error_code local_rules_engine::commit_action(player_action const& action)
       m_session_info.current_player = !m_session_info.current_player;
     }
     auto& cur_player = m_session_info.players[m_session_info.current_player];
-    trigger_pick_action(cur_player.num_draws_per_turn, cur_player.num_draws_per_turn);
+    trigger_pick_action(cur_player.num_draws_per_turn);
     add_specials(cur_player);
     return {};
   }

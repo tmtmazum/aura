@@ -28,8 +28,8 @@ struct ruleset
 
   int mana_natural_increment{1};
 
-  int challenger_starting_cards{3};
-  int defender_starting_cards{2};
+  int challenger_starting_cards{2};
+  int defender_starting_cards{1};
 
   bool stagger_turns{false};
 
@@ -55,7 +55,7 @@ struct ruleset
   int defender_starts_with_n_forts{0};
 
   int num_draws_per_turn{1};
-  int num_pick_choices_multiplier{4};
+  int num_pick_choices_multiplier{2};
 
   mutable deck challenger_deck = make_standard_deck();// make_standard_deck();
   mutable deck defender_deck = make_standard_deck();

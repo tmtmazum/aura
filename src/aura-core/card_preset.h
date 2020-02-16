@@ -31,6 +31,8 @@ struct card_preset
 
   std::vector<unit_traits> traits;
   std::vector<terrain_types> preferred_terrain;
+  card_action_type action_type;
+  card_action_targets action_targets;
 
   card_action_t primary;
   // (session, deploying player, other player)
