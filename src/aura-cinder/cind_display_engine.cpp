@@ -29,20 +29,6 @@ std::string format_lane_marker(int i)
 }
 
 
-std::string to_string(terrain_types const t)
-{
-  switch(t)
-  {
-  case terrain_types::forests:  return "forests";
-  case terrain_types::mountains: return "mountains";
-  case terrain_types::plains: return "plains";
-  case terrain_types::riverlands: return "riverlands";
-  }
-  AURA_ASSERT(false);
-  return "unknown";
-}
-
-
 std::string to_string(std::vector<terrain_types> const& t)
 {
   if (t.empty())
@@ -255,16 +241,38 @@ void cind_display_engine::display_tile_overlay(
       ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
       ci::gl::drawStrokedRoundedRect(tile_rect, 5.0f);
     }
-    else if (m_selected_card && m_selected_card->can_heal())
+    else if (m_selected_card && m_selected_card->can_target_enemy() && !is_current_player)
     {
-      ci::gl::draw(get_texture(L"icon-heal.png"), tile_rect);
+      auto const texture = std::invoke([&]
+      {
+        switch (m_selected_card->action_type)
+        {
+          case card_action_type::melee_attack: return L"tile-attack.png";
+          case card_action_type::ranged_attack: return L"tile-attack.png";
+          case card_action_type::healer: return L"icon-heal.png";
+          case card_action_type::spell: return L"tile-attack.png";
+        }
+        return L"tile-attack.png";
+      });
+      ci::gl::draw(get_texture(texture), tile_rect);
 
       ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
       ci::gl::drawStrokedRoundedRect(tile_rect, 5.0f);
     }
-    else if (m_selected_card && m_selected_card->can_attack())
+    else if (m_selected_card && m_selected_card->can_target_friendly() && is_current_player)
     {
-      ci::gl::draw(get_texture(L"icon-attack.png"), tile_rect);
+      auto const texture = std::invoke([&]
+      {
+        switch (m_selected_card->action_type)
+        {
+          case card_action_type::melee_attack: return L"tile-attack.png";
+          case card_action_type::ranged_attack: return L"tile-attack.png";
+          case card_action_type::healer: return L"icon-heal.png";
+          case card_action_type::spell: return L"tile-attack.png";
+        }
+        return L"tile-attack.png";
+      });
+      ci::gl::draw(get_texture(texture), tile_rect);
 
       ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
       ci::gl::drawStrokedRoundedRect(tile_rect, 5.0f);
@@ -297,9 +305,10 @@ void cind_display_engine::display_tile(
 
   if (player.lanes[lane_no].size() <= normalized_lane_index)
   {
-    if (player.lanes[lane_no].size() == normalized_lane_index
+    if (m_constants.always_display_terrain_tiles ||
+      (player.lanes[lane_no].size() == normalized_lane_index
       && is_current_player && m_ui_action.is(uiact::selected_hand_card)
-      && m_selected_card && m_selected_card->can_be_deployed())
+      && m_selected_card && m_selected_card->can_be_deployed()))
     {
       m_is_tile_revealed[lane_no][normalized_lane_index] = true;
       ci::gl::draw(get_texture(texture_name), tile_rect);
@@ -309,11 +318,6 @@ void cind_display_engine::display_tile(
       //ci::gl::draw(get_texture(L"tile-empty.png"), tile_rect);
     }
     return;
-  }
-
-  if (player.lanes[lane_no].empty() && normalized_lane_index == 0)
-  {
-    ci::gl::draw(get_texture(texture_name), tile_rect);
   }
 
   m_is_tile_revealed[lane_no][normalized_lane_index] = true;
@@ -345,7 +349,7 @@ void cind_display_engine::display_tile(
     aura::draw_line(line_rect, ci::msw::toUtf8String(card.name));
   }
 
-  auto const scale_factor = (card.can_attack() || card.can_heal() ? 0.7f : 0.8f);
+  auto const scale_factor = 0.8f;
 
   int index = 0;
   if (display_strength(tile_rect, scale_factor, index, card))
@@ -371,7 +375,7 @@ void cind_display_engine::display_player_overlay(ci::Rectf const& hand_area, pla
     return;
   }
   
-  if (!m_selected_card->can_attack())
+  if (!m_selected_card->can_target_enemy())
   {
     std::lock_guard lk{m_mutex};
     m_hovered_description = player.name + ": no actions possible at this time";
@@ -403,7 +407,7 @@ void cind_display_engine::display_player_overlay(ci::Rectf const& hand_area, pla
     m_hovered_description = player.name + ": no free lane available to attack";
     return;
   }
-  ci::gl::draw(get_texture(L"icon-attack.png"), r2);
+  ci::gl::draw(get_texture(L"tile-attack.png"), r2);
 
   ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
   ci::gl::drawStrokedRoundedRect(hand_area, 20.0f, 10.0f);
@@ -419,13 +423,13 @@ void cind_display_engine::display_player_hand(
   ci::Rectf const& hand_area)
 {
   auto const& c = m_constants;
-  auto const scale_factor = std::min(c.card_hand_width / c.highlight_descr_width, c.card_hand_height / c.highlight_descr_height);
+  auto const scale_factor = is_current_player ? m_constants.card_active_hand_height_multiplier : m_constants.card_passive_hand_width_multiplier;
 
   auto f = make_grid(hand_area);
   f.align_horizontal(horizontal_alignment_t::center);
   f.align_vertical(top ? vertical_alignment_t::top : vertical_alignment_t::bottom);
   f.set_padding(m_constants.hand_horizontal_padding, m_constants.hand_vertical_padding);
-  f.set_element_size(m_constants.highlight_descr_width * scale_factor, m_constants.highlight_descr_height * scale_factor);
+  f.set_element_size(m_constants.full_card_width * scale_factor, m_constants.full_card_height * scale_factor);
 
   f.arrange_horizontally(player.hand, [&](auto const& item, ci::Rectf const& orig_rect)
   {
@@ -448,8 +452,8 @@ void cind_display_engine::display_player_hand(
       display_card_full(item);
     }
 
-    auto [x1, x2] = std::minmax(0.0f, m_constants.highlight_descr_width);
-    auto [y1, y2] = std::minmax(0.0f, m_constants.highlight_descr_height);
+    auto [x1, x2] = std::minmax(0.0f, m_constants.full_card_width);
+    auto [y1, y2] = std::minmax(0.0f, m_constants.full_card_height);
 
     ci::Rectf size_rect{x1, y1, x2, y2};
     auto const coord = ci::gl::windowToObjectCoord({m_constants.mouse_x, m_constants.mouse_y});
@@ -585,7 +589,7 @@ void cind_display_engine::display_player_lanes(
     int lane_index = 0;
     g2.arrange(1, m_ruleset.max_lane_height, [&](auto const& tile_rect)
     {
-      auto const& tile_terrain = item[top ? lane_index : (item.size() - lane_index - 1)];
+      auto const& tile_terrain = item[top ? lane_index : lane_index + item.size() / 2];//item[top ? lane_index : (item.size() - lane_index - 1)];
       display_tile(player, top, is_current_player, lane_no, lane_index, tile_terrain, tile_rect);
       display_tile_overlay(player, top, is_current_player, lane_no, lane_index, tile_terrain, tile_rect);
       lane_index++;
@@ -620,7 +624,11 @@ void cind_display_engine::display_player(
   bool top,
   bool is_current_player)
 {
-  auto const hand_height = static_cast<float>(m_constants.card_hand_height + (2*m_constants.hand_vertical_padding));
+  auto const card_height =
+      is_current_player ? (m_constants.card_active_hand_height_multiplier * m_constants.full_card_height)
+                        : (m_constants.card_passive_hand_width_multiplier * m_constants.full_card_height);
+  auto const hand_height = static_cast<float>(
+      card_height + (2 * m_constants.hand_vertical_padding));
 
   auto win_frame = make_frame(ci::Rectf{0.0f, 0.0f, m_constants.window_width, m_constants.window_height});
   win_frame.align_vertical(top ? vertical_alignment_t::top : vertical_alignment_t::bottom);
@@ -885,8 +893,8 @@ bool cind_display_engine::display_preferred_terrain(ci::Rectf const& target, flo
 
 void cind_display_engine::display_card_texture(ci::gl::Texture2dRef const& t) const
 {
-  auto [x1, x2] = std::minmax(0.0f, m_constants.highlight_descr_width);
-  auto [y1, y2] = std::minmax(0.0f, m_constants.highlight_descr_height);
+  auto [x1, x2] = std::minmax(0.0f, m_constants.full_card_width);
+  auto [y1, y2] = std::minmax(0.0f, m_constants.full_card_height);
 
   ci::Rectf rect{x1, y1, x2, y2};
   
@@ -897,8 +905,8 @@ void cind_display_engine::display_card_full(card_info const& card) const
 {
   auto const mid_height = m_constants.window_height/2.0f;
 
-  auto [x1, x2] = std::minmax(0.0f, m_constants.highlight_descr_width);
-  auto [y1, y2] = std::minmax(0.0f, m_constants.highlight_descr_height);
+  auto [x1, x2] = std::minmax(0.0f, m_constants.full_card_width);
+  auto [y1, y2] = std::minmax(0.0f, m_constants.full_card_height);
 
   ci::Rectf rect{x1, y1, x2, y2};
   
@@ -957,11 +965,11 @@ void cind_display_engine::display_selected_card() const
 
   auto const mid_height = m_constants.window_height/2.0f;
 
-  auto [x1, x2] = std::minmax(m_constants.window_width - m_constants.highlight_descr_width, m_constants.window_width);
+  auto [x1, x2] = std::minmax(m_constants.window_width - m_constants.full_card_width, m_constants.window_width);
   auto [y1, y2] =
       std::minmax(mid_height + m_constants.board_vertical_padding,
                   mid_height + m_constants.board_vertical_padding +
-                      m_constants.highlight_descr_height);
+                      m_constants.full_card_height);
   ci::Rectf rect{x1, y1, x2, y2};
 
   {
@@ -976,11 +984,11 @@ void cind_display_engine::display_hovered_card() const
 {
   auto const mid_height = m_constants.window_height/2.0f;
 
-  auto [x1, x2] = std::minmax(m_constants.window_width - m_constants.highlight_descr_width, m_constants.window_width);
+  auto [x1, x2] = std::minmax(m_constants.window_width - m_constants.full_card_width, m_constants.window_width);
 
   auto [y1, y2] = m_selected_card
-    ? std::minmax(mid_height - m_constants.board_vertical_padding, mid_height - (m_constants.board_vertical_padding + m_constants.highlight_descr_height))
-    : std::minmax(mid_height - m_constants.highlight_descr_height/2.0f, mid_height + m_constants.highlight_descr_height/2.0f);
+    ? std::minmax(mid_height - m_constants.board_vertical_padding, mid_height - (m_constants.board_vertical_padding + m_constants.full_card_height))
+    : std::minmax(mid_height - m_constants.full_card_height/2.0f, mid_height + m_constants.full_card_height/2.0f);
 
   ci::Rectf rect{x1, y1, x2, y2};
 
@@ -992,7 +1000,7 @@ void cind_display_engine::display_hovered_card() const
   {
     display_on_left = true;
     rect.x1 = 0.0f;
-    rect.x2 = m_constants.highlight_descr_width;
+    rect.x2 = m_constants.full_card_width;
   };
 
   {
@@ -1005,14 +1013,14 @@ void cind_display_engine::display_hovered_card() const
   if (m_selected_card)
   {
     auto x3 = display_on_left
-      ? m_constants.highlight_descr_width/2.0f - m_constants.card_board_width/2.0f
-      : m_constants.window_width - m_constants.highlight_descr_width/2.0f - m_constants.card_board_width/2.0f;
+      ? m_constants.full_card_width/2.0f - m_constants.card_board_width/2.0f
+      : m_constants.window_width - m_constants.full_card_width/2.0f - m_constants.card_board_width/2.0f;
     auto x4 = x3 + m_constants.card_board_width;
     auto y3 = mid_height - m_constants.card_board_height/2.0f;
     auto y4 = y3 + m_constants.card_board_height;
 
     ci::Rectf r2{x3, y3, x4, y4};
-    ci::gl::draw(get_texture(L"icon-attack.png"), r2);
+    ci::gl::draw(get_texture(L"tile-attack.png"), r2);
   }
 }
 
@@ -1065,21 +1073,11 @@ void cind_display_engine::display_picks()
   auto f = make_frame(modal_area);
   f.align_horizontal(horizontal_alignment_t::center);
   f.align_vertical(vertical_alignment_t::center);
-  f.add_element(500.0f, 100.0f, [&](auto const& rect)
-  {
-    auto& player = m_session_info->players[m_session_info->current_player];
-    auto const num_draws = player.picks_available; //player.num_draws_per_turn - player.num_drawn_this_turn;
-    auto const text = stringprintf<64>("Turn %d\nPlayer %d, pick %d card%c: ", m_session_info->turn,
-      m_session_info->current_player + 1, num_draws, num_draws > 1 ? 's' : ' ');
-    display_text(text, rect, {0.9, 0.9, 0.9, 1.0}, rect.getHeight() / 2, true);
-    auto const col = ci::gl::ScopedColor{1.0, 0.0, 0.0, 1.0};
-    ci::gl::drawStrokedRect(rect);
-  });
 
   auto g = make_grid(modal_area);
   g.set_padding(m_constants.hand_horizontal_padding, m_constants.hand_vertical_padding);
 
-  g.set_element_size(m_constants.highlight_descr_width / 2, m_constants.highlight_descr_height / 2);
+  g.set_element_size(m_constants.full_card_width / 2, m_constants.full_card_height / 2);
   g.align_vertical(vertical_alignment_t::center);
   g.align_horizontal(horizontal_alignment_t::center);
 
@@ -1109,6 +1107,17 @@ void cind_display_engine::display_picks()
       }
     });
   });
+  f.add_element(500.0f, 100.0f, [&](auto const& rect)
+  {
+    auto& player = m_session_info->players[m_session_info->current_player];
+    auto const num_draws = player.picks_available; //player.num_draws_per_turn - player.num_drawn_this_turn;
+    auto const text = stringprintf<64>("Turn %d\nPlayer %d, pick %d card%c: ", m_session_info->turn,
+      m_session_info->current_player + 1, num_draws, num_draws > 1 ? 's' : ' ');
+    display_text(text, rect, {0.9, 0.9, 0.9, 1.0}, rect.getHeight() / 2, true);
+    auto const col = ci::gl::ScopedColor{1.0, 0.0, 0.0, 1.0};
+    ci::gl::drawStrokedRect(rect);
+  });
+
   f.arrange_vertically();
 }
 
@@ -1128,6 +1137,35 @@ void cind_display_engine::mouseDown(ci::app::MouseEvent event)
   std::lock_guard lk{m_mutex};
 
   AURA_LOG(L"+ 0x%x", m_ui_action.type);
+  {
+
+    int i = 0;
+    for (auto const& ii : m_session_info->terrain)
+    {
+      int j = 0;
+      for (auto const& jj : ii)
+      {
+        AURA_LOG(L"Terrain [%d][%d] = %hs", i, j, to_string(jj).c_str());
+        j++;
+      }
+      i++;
+    }
+
+    for (int p = 0; p < 2; ++p)
+    {
+      for (int lane_num = 0; lane_num < m_ruleset.num_lanes; ++lane_num)
+      {
+        for (int tile_num = 0; tile_num < m_session_info->players[p].lanes[lane_num].size(); ++tile_num)
+        {
+          auto const& lane = m_session_info->terrain[lane_num];
+          AURA_LOG(L"lane %d size = %zu", lane_num, lane.size());
+          auto const h = p ? (lane.size() - 1 - tile_num) : tile_num;
+          auto const& t = lane[h];
+          AURA_LOG(L"terrain [%d][%d][%d] = [%d][%d] = %hs", p, lane_num, tile_num, lane_num, h, to_string(t).c_str());
+        }
+      }
+    }
+  }
 
   auto const start_animation = [&]()
   {

@@ -14,6 +14,27 @@ namespace aura
 
 enum class unit_traits : int;
 
+//! affects what symbol is shown when highlighting 
+//! other (target) cards while this card is selected.
+enum class card_action_type
+{
+  melee_attack,
+  ranged_attack,
+  healer,
+  spell,
+  none
+};
+
+//! affects what other cards can be targetted while this
+//! one is selected
+enum class card_action_targets
+{
+  none,
+  friendly,
+  enemy,
+  both
+};
+
 struct card_info
 {
   int uid; //!< unique in-game identifer given by rules engine
@@ -26,6 +47,8 @@ struct card_info
   int cost;
   int energy{1};
   int starting_energy{1};//!< determines how many times this unit can act / turn before needing to rest
+  card_action_type action_type;
+  card_action_targets action_targets;
 
   bool is_visible{true}; //!< this unit can be targetted for an action
   bool on_preferred_terrain{false}; //!< whether this unit is standing on preferred terrain or not
@@ -78,11 +101,21 @@ struct card_info
 
   bool can_act() const noexcept
   {
-    return !is_resting() && strength;
+    return !is_resting() && action_type != card_action_type::none;
   }
 
-  bool can_attack() const noexcept { return strength > 0; }
-  bool can_heal() const noexcept { return strength < 0; }
+  bool can_target_enemy() const noexcept
+  {
+    return action_targets == card_action_targets::both ||
+           action_targets == card_action_targets::enemy;
+  }
+
+  bool can_target_friendly() const noexcept
+  {
+    return action_targets == card_action_targets::both ||
+           action_targets == card_action_targets::friendly;
+  }
+
   bool can_be_deployed() const noexcept { return !has_trait(unit_traits::item); }
   bool prefers_terrain(terrain_types t)
   {

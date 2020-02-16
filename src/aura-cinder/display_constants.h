@@ -16,8 +16,12 @@ struct display_constants
 
   float card_board_width = 120;
   float card_board_height = 60;
-  float card_hand_width = 240;
-  float card_hand_height = 120;
+  //float card_hand_width = 240;
+  //float card_hand_height = 120;
+  float card_active_hand_width_multiplier = 0.5f;
+  float card_active_hand_height_multiplier = 0.5f;
+  float card_passive_hand_width_multiplier = 0.1f;
+  float card_passive_hand_height_multiplier = 0.1f;
 
   float terrain_icon_width = std::min(card_board_width, card_board_height) * 0.5f;
   float terrain_icon_height = std::min(card_board_width, card_board_height) * 0.5f;
@@ -32,8 +36,9 @@ struct display_constants
 
   float card_font_point = 18.0;
 
-  float highlight_descr_width = 240.0f;
-  float highlight_descr_height = 360.0f;
+  //! The card's dimensions in 100% magnification
+  float full_card_width = 240.0f;
+  float full_card_height = 360.0f;
 
   float card_icon_width = 40.0f;
   float card_icon_height = 40.0f;
@@ -47,6 +52,9 @@ struct display_constants
 
   float mouse_x{};
   float mouse_y{};
+
+  //! Intended for debugging only
+  bool always_display_terrain_tiles = false;
 
   ci::ColorAf hand_card_color{0.1, 0.1, 0.1, 1.0};
   ci::ColorAf hand_hovered_color{0.15f, 0.15f, 0.15f, 0.4f};

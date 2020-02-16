@@ -169,6 +169,44 @@ card_info local_rules_engine::to_card_info(card_preset const& preset, int cid)
   info.energy = preset.energy;
   info.starting_energy = preset.energy;
   info.description = preset.special_descr;
+  info.action_type = std::invoke([&]
+  {
+    if (!preset.primary)
+    {
+      return card_action_type::none;
+    }
+
+    if (info.has_trait(unit_traits::healer))
+    {
+      return card_action_type::healer;
+    }
+
+    if (info.has_trait(unit_traits::long_range))
+    {
+      return card_action_type::ranged_attack;
+    }
+
+    if (info.strength > 0)
+    {
+      return card_action_type::melee_attack;
+    }
+
+    return card_action_type::spell;
+  });
+
+  info.action_targets = std::invoke([&]
+  {
+    switch (info.action_type)
+    {
+    case card_action_type::melee_attack: return card_action_targets::enemy;
+    case card_action_type::ranged_attack: return card_action_targets::enemy;
+    case card_action_type::healer: return card_action_targets::friendly;
+    case card_action_type::spell: return card_action_targets::both;
+    case card_action_type::none: return card_action_targets::none;
+    }
+
+    return card_action_targets::both;
+  });
 
   if (preset.primary)
   {
@@ -201,10 +239,13 @@ terrain_t local_rules_engine::generate_terrain()
   for (int i = 0; i < m_rules.num_lanes; ++i)
   {
     std::vector<terrain_types> v;
+    AURA_LOG(L"- Terrain lane %d", i);
     for (int j = 0; j < m_rules.max_lane_height * 2; ++j)
     {
       auto const n = rand() % static_cast<int>(terrain_types::total);
-      v.emplace_back(static_cast<terrain_types>(n));
+      auto const t = static_cast<terrain_types>(n);
+      AURA_LOG(L"- - Tile %d = %hs", j, to_string(t).c_str());
+      v.emplace_back(t);
     }
     t.emplace_back(v);
   }
@@ -315,9 +356,10 @@ void local_rules_engine::add_specials(player_info& player)
 
 void local_rules_engine::apply_terrain_modifiers(int cur_player, int lane_num, int tile_num, card_info& card) const
 {
-  auto const h = cur_player ? (m_rules.max_lane_height - 1 - tile_num) : tile_num;
+  auto const h = cur_player ? ((2*m_rules.max_lane_height) - 1 - tile_num) : tile_num;
   auto const& t = m_session_info.terrain[lane_num][h];
 
+  AURA_LOG(L"Terrain modifier at [%d][%d][%d] is %hs", cur_player, lane_num, h, to_string(t).c_str());
   auto const is_preferred =
       std::find(begin(card.preferred_terrain), end(card.preferred_terrain), t) != end(card.preferred_terrain);
 
