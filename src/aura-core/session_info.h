@@ -26,6 +26,7 @@ struct card_info
   int cost;
   int energy{1};
   int starting_energy{1};//!< determines how many times this unit can act / turn before needing to rest
+  int fight_back{1};
   card_action_type action_type;
   card_action_targets action_targets;
 

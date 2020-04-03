@@ -71,12 +71,14 @@ inline card_action_t generic_damage_dealer()
     }
 
     LEGAL_ASSERT(card_actor.strength > 0, L"This unit cannot deal damage");
-    auto const reduced_health = target.health - card_actor.effective_strength(target.current_terrain);
+    auto const reduced_health = target.effective_health() - card_actor.effective_strength(target.current_terrain);
     if (target.has_trait(unit_traits::damage_trap))
     {
       auto const diff = std::min(target.health, card_actor.effective_strength(target.current_terrain));
       card_actor.health = card_actor.health - diff;
     }
+    card_actor.health -= std::min(card_actor.effective_health(), target.fight_back);
+    target.fight_back = 1;
     target.health = reduced_health;
     card_actor.energy--;
     return std::error_code{};
@@ -307,6 +309,20 @@ inline card_action_t hero_focus()
   };
 }
 
+inline card_action_t hero_fight_back()
+{
+  return [](auto& re, session_info& session, card_info& card_actor, card_info& target)
+  {
+    auto& player = session.players[session.current_player];
+    LEGAL_ASSERT(card_actor.cost <= player.mana, L"Insufficient mana to deploy that card");
+
+    player.fight_back += card_actor.strength;
+    player.mana -= card_actor.cost;
+    session.remove_hand_card(card_actor.uid);
+    return std::error_code{};
+  };
+}
+
 
 inline card_action_t vigor_potion()
 {
@@ -469,8 +485,10 @@ std::vector<card_preset> const presets = {
 };
 
 std::vector<card_preset> const specials = {
+  //cpt{ <name>,            <cost>, <strength>, <health>, <energy>, {<traits>}, primary, on_deploy, on_death}
   cpt{L"Hero Attack", L"does 1 damage on any front-lane unit", 1, 1, 0, 1, {ut::item, ut::hero_power}, {}, cay::melee_attack, cat::enemy, hero_attack()},
-  cpt{L"Hero Focus", L"pick 2 new cards", 2, 1, 0, 1, {ut::item, ut::hero_power}, {}, cay::spell, cat::friendly_hero, hero_focus()}
+  cpt{L"Hero Focus", L"pick 2 new cards", 2, 1, 0, 1, {ut::item, ut::hero_power}, {}, cay::spell, cat::friendly_hero, hero_focus()},
+  cpt{L"Royal Guard", L"The next unit to attack the hero concedes 2 damage", 1, 2, 0, 1, {ut::item, ut::hero_power}, {}, cay::spell, cat::friendly_hero, hero_fight_back()}
   //card_preset{L"Hero Charge", L"draw 3 random cards", 1, 1, 0, 1, {ut::item}, hero_attack()}
 };
 

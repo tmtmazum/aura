@@ -354,6 +354,10 @@ void local_rules_engine::add_specials(player_info& player)
   {
     player.hand.emplace_back(to_card_info(specials[1], specials[1].cid));
   }
+  if (m_rules.enable_hero_specials && !has_special(2))
+  {
+    player.hand.emplace_back(to_card_info(specials[2], specials[2].cid));
+  }
 }
 
 void local_rules_engine::apply_terrain_modifiers(int cur_player, int lane_num, int tile_num, card_info& card) const

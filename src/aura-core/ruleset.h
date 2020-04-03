@@ -8,20 +8,20 @@ namespace aura
 
 enum class game_mode : int
 {
-	PvP,
-	PvC
+  PvP,
+  PvC
 };
 
 struct ruleset
 {
-	game_mode mode{game_mode::PvP};
+  game_mode mode{game_mode::PvP};
   int num_lanes{4};
   int num_players{2};
   int max_lane_height{4}; //!< max # of units in lane
   int challenger_starting_health{10};
   int defender_starting_health{10};
 
-  int challenger_starting_mana{1};
+  int challenger_starting_mana{2};
   int defender_starting_mana{1};
 
   int max_starting_mana{20};
