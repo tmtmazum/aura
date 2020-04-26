@@ -34,7 +34,9 @@ public:
   
   //! ci::app::App interface
   void setup() override {
-    ci::app::addAssetDirectory(LR"(../assets/)");  
+    auto const abs_path = std::filesystem::absolute(std::filesystem::current_path() / L"assets").wstring();
+    AURA_LOG(L"assets path = %ls", abs_path.c_str());
+    ci::app::addAssetDirectory(abs_path);  
     card_info in{};
 
     std::vector<bool> v(m_ruleset.max_lane_height, false);
