@@ -6,8 +6,8 @@
 #include <cinder/app/App.h>
 #include <cinder/app/RendererGl.h>
 #include <cinder/gl/gl.h>
-#include <cinder/log.h>
-#include <cinder/text.h>
+#include <cinder/Log.h>
+#include <cinder/Text.h>
 #include <vector>
 #include <memory>
 #include <mutex>
@@ -34,7 +34,7 @@ public:
   
   //! ci::app::App interface
   void setup() override {
-    ci::app::addAssetDirectory(LR"(F:\cpp-projects\aura\assets\)");  
+    ci::app::addAssetDirectory(LR"(../assets/)");  
     card_info in{};
 
     std::vector<bool> v(m_ruleset.max_lane_height, false);
@@ -140,9 +140,9 @@ public:
 
   void display_background() const;
 
-  void cind_display_engine::display_mouse();
+  void display_mouse();
 
-  void cind_display_engine::display_animations();
+  void display_animations();
 
   ci::gl::Texture2dRef hand_card_texture(card_info const&) const;
 

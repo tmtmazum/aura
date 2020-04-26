@@ -1,5 +1,5 @@
 #include "cind_display_engine.h"
-#include <cinder/msw/CinderMsw.h>
+#include <aura-core/platform.h>
 #include <aura-core/session_info.h>
 #include <aura-core/build.h>
 #include <aura-cinder/grid.h>
@@ -16,7 +16,7 @@ template <size_t N, typename... Args>
 std::string stringprintf(char const* format, Args&&... args)
 {
   char buf[N]{};
-  auto const e = sprintf_s(buf, N, format, std::forward<Args>(args)...);
+  auto const e = snprintf(buf, N, format, std::forward<Args>(args)...);
   return buf;
 }
 
@@ -50,11 +50,11 @@ std::string to_string(std::vector<terrain_types> const& t)
 std::string format_card_descr(rules_engine const& re, card_info const& card)
 {
   std::string s;
-  //std::string s{ci::msw::toUtf8String(card.name)};
+  //std::string s{to_utf8_string(card.name)};
   if (!card.description.empty())
   {
-    return ci::msw::toUtf8String(card.description);
-    //s += ci::msw::toUtf8String(card.description);
+    return to_utf8_string(card.description);
+    //s += to_utf8_string(card.description);
     //s += "\n";
   }
 
@@ -64,7 +64,7 @@ std::string format_card_descr(rules_engine const& re, card_info const& card)
     {
       if (!s.empty())
         s += "; ";
-      s += ci::msw::toUtf8String(d);
+      s += to_utf8_string(d);
     }
   }
   if (card.is_resting())
@@ -80,11 +80,6 @@ std::string format_card_descr(rules_engine const& re, card_info const& card)
     s += "cloaked: This unit is hidden and cannot be targetted this turn";
   }
   return s;
-}
-
-auto to_string(std::wstring const& ws)
-{
-  return ci::msw::toUtf8String(ws);
 }
 
 } // namespace {}
@@ -190,7 +185,7 @@ void cind_display_engine::display_tile_overlay(
   {
     return;
   }
-  m_hovered_description = ci::msw::toUtf8String(card.get_hovered_description());
+  m_hovered_description = to_utf8_string(card.get_hovered_description());
   if (m_selected_card && m_selected_card->prefers_terrain(tile_terrain))
   {
     m_hovered_description += " (terrain bonus: +1 damage)";
@@ -318,7 +313,7 @@ void cind_display_engine::display_tile(
 
     auto line_h = 15.0f;
     ci::Rectf line_rect{tile_rect.x1, tile_rect.y2 - line_h, tile_rect.x2, tile_rect.y2};
-    aura::draw_line(line_rect, ci::msw::toUtf8String(card.name));
+    aura::draw_line(line_rect, to_utf8_string(card.name));
   }
 
   auto const scale_factor = 0.8f;
@@ -459,11 +454,11 @@ void cind_display_engine::display_player_hand(
         m_hovered_card = &item;
         if (playable)
         {
-          m_hovered_description = ci::msw::toUtf8String(item.get_hovered_description());
+          m_hovered_description = to_utf8_string(item.get_hovered_description());
         }
         else
         {
-          m_hovered_description = ci::msw::toUtf8String(item.name) + " (Insufficient mana to play this card)";
+          m_hovered_description = to_utf8_string(item.name) + " (Insufficient mana to play this card)";
         }
       }
 
@@ -897,7 +892,7 @@ void cind_display_engine::display_card_full(card_info const& card) const
     auto const height = 20.0f;
 
     ci::Rectf sub_rect{x1 + pad_x, y2 - height - pad_y, x2 - pad_x, y2 - pad_y};
-    aura::draw_line(sub_rect, ci::msw::toUtf8String(card.name));
+    aura::draw_line(sub_rect, to_utf8_string(card.name));
   }
 
   // show description
@@ -1013,7 +1008,7 @@ void cind_display_engine::display_hovered_description() const
     return n + 1;
   }();
 
-  ci::Rectf hover_rect({m_constants.mouse_x, m_constants.mouse_y, m_constants.mouse_x + std::min(400.0f, 12.0f * m_hovered_description.size()), m_constants.mouse_y + (25.0f * num_lines)});
+  ci::Rectf hover_rect{m_constants.mouse_x, m_constants.mouse_y, m_constants.mouse_x + std::min(400.0f, 12.0f * m_hovered_description.size()), m_constants.mouse_y + (25.0f * num_lines)};
   hover_rect.offset({10.0f, 20.0f});
   {
     ci::gl::ScopedColor col{0.1f, 0.1f, 0.1f, 0.5f};
@@ -1078,7 +1073,7 @@ void cind_display_engine::display_picks()
 
         std::lock_guard lk{m_mutex};
         m_ui_action.add(uiact::hovered_pick_card, card.uid);
-        m_hovered_description = ci::msw::toUtf8String(card.name);
+        m_hovered_description = to_utf8_string(card.name);
         m_hovered_card = &card;
       }
     });

@@ -20,15 +20,15 @@ struct scope_log_t
 #endif
 
 #ifndef AURA_LOG
-#	define AURA_LOG(format, ...) wprintf(L"%lc " format L"\n", 195, __VA_ARGS__)
+#	define AURA_LOG(format, ...) wprintf(L"%lc " format L"\n", 195, ##__VA_ARGS__)
 #endif
 
 #ifndef AURA_PRINT
-#	define AURA_PRINT(format, ...) wprintf(format, __VA_ARGS__)
+#	define AURA_PRINT(format, ...) wprintf(format, ##__VA_ARGS__)
 #endif
 
 #ifndef AURA_ERROR
-# define AURA_ERROR(error, format, ...) wprintf(L"%lc e (%d, %hs) | %hs | " format L"\n", 195, error.value(), error.category().name(), error.message().c_str(), __VA_ARGS__)
+# define AURA_ERROR(error, format, ...) wprintf(L"%lc e (%d, %hs) | %hs | " format L"\n", 195, error.value(), error.category().name(), error.message().c_str(), ##__VA_ARGS__)
 #endif
 
 #ifndef AURA_ASSERT

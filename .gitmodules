@@ -1,6 +1,9 @@
-[submodule "src/cinder2"]
-	path = src/cinder2
-	url = https://github.com/cinder/Cinder.git
-[submodule "src/cpp-httplib"]
-	path = src/cpp-httplib
+[submodule "external/cpp-httplib"]
+	path = external/cpp-httplib
 	url = https://github.com/yhirose/cpp-httplib
+[submodule "external/Cinder-Boost"]
+	path = external/Cinder-Boost
+	url = https://github.com/cinder/Cinder-Boost
+[submodule "external/Cinder"]
+	path = external/Cinder
+	url = https://github.com/cinder/Cinder

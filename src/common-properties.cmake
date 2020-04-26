@@ -1,4 +1,4 @@
-set(AURA_OUTPUT_DIR ${CMAKE_SOURCE_DIR}/..)
+set(AURA_OUTPUT_DIR ${CMAKE_SOURCE_DIR})
 message("<!-- Your output directory is configured as ${AURA_OUTPUT_DIR} -->")
 
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${AURA_OUTPUT_DIR}/lib)
@@ -10,5 +10,5 @@ if (MSVC)
 	set(CMAKE_CXX_FLAGS_RELEASE "/MT")
 endif()
 
-include_directories(.)
-include_directories(../include)
+message("<!-- Adding to include dirs : ${CMAKE_SOURCE_DIR}/src -->")
+include_directories(${CMAKE_SOURCE_DIR}/src)
