@@ -98,7 +98,7 @@ auto terrain_to_color(terrain_types t)
 }
 
 template <typename Fn>
-[[nodiscard]] struct scope_exit : public Fn
+struct [[nodiscard]] scope_exit : public Fn
 {
   scope_exit(Fn&& fn)
     : Fn{std::move(fn)}

@@ -128,7 +128,8 @@ struct grid
     using std::begin;
     using std::end;
 
-    auto [it, it_reverse] = std::make_pair(begin(c), rbegin(c));
+    auto it = begin(c);
+    auto it_reverse = rbegin(c);
     arrange(c.size(), 1, [&](auto const& rect)
     {
       cons(reverse ? *it_reverse++ : *it++, rect);
@@ -141,7 +142,8 @@ struct grid
     using std::begin;
     using std::end;
 
-    auto [it, it_reverse] = std::make_pair(begin(c), rbegin(c));
+    auto it = begin(c);
+    auto it_reverse = rbegin(c);
     arrange(1, c.size(), [&](auto const& rect)
     {
       cons(reverse ? *it_reverse++ : *it++, rect);
