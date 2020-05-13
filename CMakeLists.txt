@@ -16,6 +16,7 @@ add_subdirectory(src/aura-cli)
 # add_subdirectory(cinder2)
 add_subdirectory(external/Cinder)
 add_subdirectory(src/aura-cinder)
+add_subdirectory(src/aura-cinder-gl)
 # add_subdirectory(src/aura-server)
 # add_subdirectory(src/aura-client)
 
