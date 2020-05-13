@@ -4,7 +4,7 @@
 #include <memory>
 #include <any>
 #include <functional>
-#include <mutex>
+#include <shared_mutex>
 
 namespace aura
 {
@@ -70,10 +70,13 @@ struct dag_node_s
   std::shared_ptr<dag_node> m_transition;
 
   using render_fn_t = std::function<void(std::any const&)>;
+  using void_fn_t = std::function<void(void)>;
 
+  render_fn_t m_on_push;
   render_fn_t m_on_render;
   render_fn_t m_on_render_hovered;
   render_fn_t m_on_render_selected;
+  void_fn_t m_on_pop;
 
   dag_id m_id;
 };
@@ -98,7 +101,7 @@ public:
 
   bool is_selected() const noexcept { return false; }
   bool is_hovered() const noexcept { return false; }
-  std::mutex m_mutex;
+  std::shared_mutex m_mutex;
 };
 
 } // namespace aura

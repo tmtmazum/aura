@@ -26,6 +26,9 @@ auto make_render_fn(Fn&& fn)
 namespace functions
 {
 
+template <typename T>
+auto to_float(T t) { return static_cast<float>(t); }
+
 std::shared_ptr<dag_node> create_ui_layer()
 {
   dag_node_s frame{};
@@ -38,6 +41,52 @@ std::shared_ptr<dag_node> create_ui_layer()
 
     ci::gl::drawStrokedRect(rect, 5.0f);
   });
+
+  dag_node_s form{};
+  form.m_on_render = make_render_fn([](ci::app::AppBase* app)
+  {
+    ci::gl::ScopedColor col{0.0f, 0.0f, 1.0f, 1.0f};
+    ci::Rectf rect{0.0f, 0.0f, 400.0f, 400.0f};
+
+    ci::gl::drawStrokedRect(rect, 2.0f);
+  });
+  form.m_on_push = make_render_fn([](ci::app::AppBase* app)
+  {
+    auto const area = app->getWindowBounds();
+    ci::gl::pushMatrices();
+    ci::gl::translate(to_float(area.getX1()) + (to_float(area.getWidth())/2) - 200.0f, 
+      to_float(area.getY1()) + (to_float(area.getHeight())/2) - 200.0f);
+  });
+
+  form.m_on_pop = []()
+  {
+    ci::gl::popMatrices();
+  };
+
+  dag_node_s button1{};
+  button1.m_on_render = make_render_fn([](ci::app::AppBase* app)
+  {
+    ci::gl::ScopedColor col{1.0f, 0.0f, 0.0f, 1.0f};
+    ci::Rectf rect{0.0f, 0.0f, 40.0f, -40.0f};
+
+    ci::gl::drawStrokedRect(rect, 1.0f);
+  });
+  button1.m_on_push = make_render_fn([](ci::app::AppBase* app)
+  {
+    auto const area = app->getWindowBounds();
+    ci::gl::pushMatrices();
+    ci::gl::translate(0.0f, 40.0f + 20.0f);
+  });
+
+  button1.m_on_pop = []()
+  {
+    ci::gl::popMatrices();
+  };
+
+  button1.m_child = std::make_shared<dag_node>(button1);
+  form.m_child = std::make_shared<dag_node>(button1);
+  frame.m_child = std::make_shared<dag_node>(form);
+
   return std::make_shared<dag_node>(std::move(frame));
 }
 

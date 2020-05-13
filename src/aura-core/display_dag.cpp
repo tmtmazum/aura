@@ -1,6 +1,7 @@
 #include "display_dag.h"
 #include <unordered_set>
 #include <stack>
+#include <shared_mutex>
 
 namespace aura
 {
@@ -46,8 +47,16 @@ void master_dag::render_all(std::any const& data)
   {
     auto const d = stack.top();
 
-    if (d && !visited.count(d.get()))
+    std::shared_lock lock{d->m_mutex};
+
+    auto const is_visited = visited.count(d.get());
+
+    if (d && !is_visited)
     {
+      if (d->m_on_push)
+      {
+        d->m_on_push(data);
+      }
       render(d.get(), data);
       visited.insert(d.get());
     }
@@ -58,12 +67,17 @@ void master_dag::render_all(std::any const& data)
       continue;
     }
 
+    if (d->m_on_pop)
+    {
+      d->m_on_pop();
+    }
+    stack.pop();
+
     if (d->m_sibling && !visited.count(d->m_sibling.get()))
     {
       stack.push(d->m_sibling);
       continue;
     }
-    stack.pop();
   }
 }
 
