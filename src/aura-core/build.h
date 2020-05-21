@@ -14,13 +14,21 @@ struct scope_log_t
 };
 
 #ifndef AURA_ENTER
-# define AURA_ENTER() \
-  wprintf(L"%lc %hs(..) \n", 218, __FUNCTION__); \
-  auto const scopelog ## __LINE__ = scope_log_t{__FUNCTION__}
+# if AURA_DEBUG
+#   define AURA_ENTER() \
+      wprintf(L"%lc %hs(..) \n", 218, __FUNCTION__); \
+      auto const scopelog ## __LINE__ = scope_log_t{__FUNCTION__}
+# else
+#   define AURA_ENDER()
+# endif
 #endif
 
 #ifndef AURA_LOG
-#	define AURA_LOG(format, ...) wprintf(L"%lc " format L"\n", 195, ##__VA_ARGS__)
+# if AURA_DEBUG
+#	  define AURA_LOG(format, ...) wprintf(L"%lc " format L"\n", 195, ##__VA_ARGS__)
+# else
+#	  define AURA_LOG(format, ...)
+# endif
 #endif
 
 #ifndef AURA_PRINT
@@ -32,5 +40,9 @@ struct scope_log_t
 #endif
 
 #ifndef AURA_ASSERT
-#	define AURA_ASSERT(cond) if (!(cond)) { wprintf(L"%lc%lc " #cond L"\n", 192, 254); assert((cond)); }
+# if AURA_DEBUG
+#	  define AURA_ASSERT(cond) if (!(cond)) { wprintf(L"%lc%lc " #cond L"\n", 192, 254); assert((cond)); }
+# else
+#   define AURA_ASSERT(cond)
+# endif
 #endif
