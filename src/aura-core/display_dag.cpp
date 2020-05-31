@@ -24,18 +24,20 @@ void dag_node::clear() noexcept
   m_transitions.clear();
 }
 
+void dag_node::add_child(shared_dag_t child) noexcept
+{
+    if (m_child)
+    {
+        return m_child->add_sibling(std::move(child));
+    }
+    return set_child(std::move(child));
+}
+
 void dag_node::set_child(shared_dag_t child) noexcept
 {
   AURA_ASSERT(!m_child);
 
-  child->m_replace_me = [w = weak_from_this()](shared_dag_t new_node)
-  {
-    if (auto const parent = w.lock())
-    {
-      std::unique_lock lk{parent->m_mutex};
-      parent->m_child = std::move(new_node);
-    }
-  };
+  child->m_parent = weak_from_this();
 
   std::unique_lock lk{m_mutex};
   m_child = std::move(child);
@@ -47,18 +49,20 @@ dag_id generate_dag_id()
   return i++;
 }
 
+void dag_node::add_sibling(shared_dag_t sibling) noexcept
+{
+    if (m_sibling)
+    {
+        return m_sibling->add_sibling(std::move(sibling));
+    }
+    return set_sibling(std::move(sibling));
+}
+
 void dag_node::set_sibling(shared_dag_t sibling) noexcept
 {
   AURA_ASSERT(!m_sibling);
 
-  sibling->m_replace_me = [w = weak_from_this()](shared_dag_t new_node)
-  {
-    if (auto const parent = w.lock())
-    {
-      std::unique_lock lk{parent->m_mutex};
-      parent->m_sibling = std::move(new_node);
-    }
-  };
+  sibling->m_parent = weak_from_this();
 
   std::unique_lock lk{m_mutex};
   m_sibling = std::move(sibling);
@@ -117,69 +121,97 @@ float dag_node::transition_elapsed(dag_node_s::clock_t::duration total_duration,
   return t;
 }
 
+static void transition_node(shared_dag_t const& current, shared_dag_t const& next)
+{
+    next->m_sibling = std::move(current->m_sibling);
+    current->m_sibling = nullptr;
+    next->reset_timer();
+    if (auto const parent = current->m_parent.lock())
+    {
+        next->m_parent = parent;
+        std::unique_lock lk{parent->m_mutex};
+        if (parent->m_child.get() == current.get())
+        {
+            parent->m_child = next;
+        }
+        else
+        {
+            AURA_ASSERT(parent->m_sibling.get() == current.get());
+            parent->m_sibling = next;
+        }
+    }
+
+    if (next->m_sibling)
+    {
+        next->m_sibling->m_parent = next;
+    }
+}
+
 void master_dag::render_all(dag_context_t data)
 {
-  constexpr auto est_num_nodes = 32;
-  std::unordered_set<dag_node*> visited;
-  visited.reserve(est_num_nodes);
+    constexpr auto est_num_nodes = 32;
+    std::unordered_set<dag_node*> visited;
+    visited.reserve(est_num_nodes);
 
-  std::stack<std::shared_ptr<dag_node>> stack;
-  stack.push(m_master);
+    std::stack<std::shared_ptr<dag_node>> stack;
+    stack.push(m_master);
 
-  while (!stack.empty())
-  {
-    auto const d = stack.top();
-
-    std::shared_lock lock{d->m_mutex};
-
-    auto const is_visited = visited.count(d.get());
-
-    if (d && !is_visited)
+    while (!stack.empty())
     {
-      for (auto&& [pred, next] : d->m_transitions)
-      {
-        AURA_ASSERT(pred);
-        if (pred(data, *d))
+        auto const d = stack.top();
+        AURA_ASSERT(d);
+
+        std::shared_lock lock{d->m_mutex};
+
+        auto const is_visited = visited.count(d.get());
+
+        if (!is_visited)
         {
-          AURA_ASSERT(d->m_replace_me);
-          next->m_replace_me = std::move(d->m_replace_me);
-          next->reset_timer();
-          next->m_replace_me(next);
+            for (auto&& [pred, next] : d->m_transitions)
+            {
+                AURA_ASSERT(pred);
+                if (!pred(data, *d))
+                {
+                    continue;
+                }
+                // condition for transition is satisfied
+                AURA_ASSERT(!next->m_sibling);
+
+                transition_node(d, next);
+
+                stack.push(next);
+            }
+
+            if (d->m_on_push)
+            {
+                d->m_on_push(data, *d);
+            }
+
+            if (d->m_on_render)
+            {
+                d->m_on_render(data, *d);
+            }
+            visited.insert(d.get());
         }
-        stack.push(next);
-        continue;
-      }
 
-      if (d->m_on_push)
-      {
-        d->m_on_push(data, *d);
-      }
+        if (d->m_child && !visited.count(d->m_child.get()))
+        {
+            stack.push(d->m_child);
+            continue;
+        }
 
-      if (d->m_on_render)
-      {
-        d->m_on_render(data, *d);
-      }
-      visited.insert(d.get());
+        if (d->m_on_pop)
+        {
+            d->m_on_pop();
+        }
+        stack.pop();
+
+        if (d->m_sibling && !visited.count(d->m_sibling.get()))
+        {
+            stack.push(d->m_sibling);
+            continue;
+        }
     }
-
-    if (d->m_child && !visited.count(d->m_child.get()))
-    {
-      stack.push(d->m_child);
-      continue;
-    }
-
-    if (d->m_on_pop)
-    {
-      d->m_on_pop();
-    }
-    stack.pop();
-
-    if (d->m_sibling && !visited.count(d->m_sibling.get()))
-    {
-      stack.push(d->m_sibling);
-      continue;
-    }
-  }
 }
 
 } // namespace aura

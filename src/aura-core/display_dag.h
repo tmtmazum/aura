@@ -1,5 +1,6 @@
 #pragma once
 
+#include <aura-core/build.h>
 #include <unordered_map>
 #include <memory>
 #include <functional>
@@ -84,16 +85,15 @@ struct dag_node_s
   using transition_map_t = std::vector<std::pair<predicate_fn_t, shared_dag_t>>;
   using clock_t = std::chrono::steady_clock;
 
-  shared_dag_t m_child;
-  shared_dag_t m_sibling;
-  weak_dag_t m_parent;
-  replace_me_t m_replace_me;
-  transition_map_t m_transitions;
+  shared_dag_t      m_child;
+  shared_dag_t      m_sibling;
+  weak_dag_t        m_parent;
+  transition_map_t  m_transitions;
 
-  render_fn_t m_on_push;
-  render_fn_t m_on_render;
-  void_fn_t m_on_pop;
-  std::any m_any_data;  //!< store some per node data
+  render_fn_t       m_on_push;
+  render_fn_t       m_on_render;
+  void_fn_t         m_on_pop;
+  std::any          m_any_data;    //!< store some per node data
 
   dag_id m_id = generate_dag_id();
   clock_t::time_point m_timer_start = dag_node_s::clock_t::now();
@@ -125,6 +125,10 @@ public:
     : dag_node_s{std::move(impl)}
   {
   }
+
+  void add_child(shared_dag_t child) noexcept;
+
+  void add_sibling(shared_dag_t sibling) noexcept;
 
   void set_child(shared_dag_t child) noexcept;
   
