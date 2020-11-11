@@ -19,4 +19,6 @@ add_subdirectory(src/aura-cinder)
 # add_subdirectory(src/aura-server)
 # add_subdirectory(src/aura-client)
 
+add_subdirectory(test/ogl-test)
+
 # add_subdirectory(src/cpp-httplib)
