@@ -4,6 +4,7 @@
 
 #include <filesystem>
 #include <cassert>
+#include <cstdlib>
 
 using namespace ci;
 
@@ -133,6 +134,7 @@ void TestApp2::setup()
 	gl::enableDepthWrite();
 	gl::enableDepthRead();
 	gl::enableAlphaBlending();
+	srand(time(nullptr));
 }
 
 void TestApp2::draw()
@@ -140,11 +142,17 @@ void TestApp2::draw()
     gl::clear( ci::Color( 0.2f, 0.2f, 0.2f ) );
 	gl::setMatrices(m_cam);
 
+	//static vec2 light_pos(getWindowCenter());
+	//
+	//light_pos.x += 0.5*((rand() % 3) - 1); // 0, 1, 2 -> -1 0 1
+	//light_pos.y += 0.5*((rand() % 3) - 1); // 0, 1, 2 -> -1 0 1
+
 	auto mouse_world = ci::gl::windowToWorldCoord(getMousePos() - getWindowPos());
 	mouse_world.z = 1.25f;
 
 	m_glsl->uniform("uColor", ColorAf{1.0f, 1.0f, 1.0f, 1.0f});
 	m_glsl->uniform("light0", mouse_world);
+	//m_glsl->uniform("light0", ci::gl::windowToWorldCoord(light_pos));
 
     m_glsl->bind();
     m_glsl->uniform("uTex0", 0);
@@ -186,20 +194,6 @@ void TestApp2::draw()
 		m_glsl->uniform("use_normal_map", false);
 	}
 
-	//{
- //       gl::ScopedTextureBind bind{m_hovered_texture};
-
- //       auto w = 4*0.7f;
- //       auto h = 4.0f;
-
- //       ci::gl::ScopedModelMatrix mat{};
- //       ci::gl::scale({w, h, 1.0f});
- //       ci::gl::translate(0.0f, 0.0f, 0.1f);
-	//	ci::gl::rotate(rad, {0.0f, 1.0f, 0.0f});
-
- //       m_batch->draw();
-	//}
-
 	{
         gl::ScopedTextureBind bind{m_texture};
         ci::gl::ScopedModelMatrix mat{};
@@ -209,4 +203,4 @@ void TestApp2::draw()
 	}
 }
 
-CINDER_APP(TestApp2, ci::app::RendererGl)
+//CINDER_APP(TestApp2, ci::app::RendererGl)
