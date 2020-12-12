@@ -60,9 +60,8 @@ private:
     phong_shader m_shader;
     plain_shader m_plain_shader;
 
-	std::unordered_map<std::string, ci::gl::Texture2dRef> m_textures;
-
-	std::unordered_map<std::string, ci::gl::BatchRef> m_batches;
+    std::unordered_map<std::string, ci::gl::Texture2dRef> m_textures;
+    std::unordered_map<std::string, ci::gl::BatchRef> m_batches;
 
 	//card_draft_intro m_intro;
 

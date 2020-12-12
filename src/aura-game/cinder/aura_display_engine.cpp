@@ -200,7 +200,7 @@ void aura_display_engine::draw()
     */
 }
 
-ci::gl::Texture2dRef aura_display_engine::request_texture(std::string const& name) override
+ci::gl::Texture2dRef aura_display_engine::request_texture(std::string const& name)
 {
     getWindowBounds();
     if (auto const it = m_textures.find(name); it != m_textures.end())
@@ -217,7 +217,7 @@ ci::gl::Texture2dRef aura_display_engine::request_texture(std::string const& nam
     return texture;
 }
 
-ci::gl::BatchRef aura_display_engine::request_batch(std::string const& name) override
+ci::gl::BatchRef aura_display_engine::request_batch(std::string const& name)
 {
     if (auto const it = m_batches.find(name); it != m_batches.end())
         return it->second;
