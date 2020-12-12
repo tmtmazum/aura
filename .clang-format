@@ -1,7 +1,7 @@
 ---
 Language:        Cpp
 # BasedOnStyle:  Google
-AccessModifierOffset: -1
+AccessModifierOffset: -4
 AlignAfterOpenBracket: Align
 AlignConsecutiveAssignments: false
 AlignConsecutiveDeclarations: false
@@ -73,7 +73,7 @@ IncludeCategories:
 IncludeIsMainRegex: '([-_](test|unittest))?$'
 IndentCaseLabels: true
 IndentPPDirectives: None
-IndentWidth:     2
+IndentWidth:     4
 IndentWrappedFunctionNames: false
 JavaScriptQuotes: Leave
 JavaScriptWrapImports: true
@@ -83,7 +83,7 @@ MacroBlockEnd:   ''
 MaxEmptyLinesToKeep: 1
 NamespaceIndentation: None
 ObjCBinPackProtocolList: Never
-ObjCBlockIndentWidth: 2
+ObjCBlockIndentWidth: 4
 ObjCSpaceAfterProperty: false
 ObjCSpaceBeforeProtocolList: true
 PenaltyBreakAssignment: 2

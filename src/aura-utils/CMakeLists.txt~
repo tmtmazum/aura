@@ -1,0 +1,28 @@
+project(aura_utils)
+
+file(GLOB aura_utils_h *.h)
+file(GLOB aura_utils_src *.cpp)
+
+if (WIN32)
+    file(GLOB platform_src ${CMAKE_CURRENT_SOURCE_DIR}/windows/*.cpp)
+elseif (UNIX)
+    file(GLOB platform_src ${CMAKE_CURRENT_SOURCE_DIR}/linux/*.cpp)
+endif()
+
+add_library(aura_utils STATIC ${aura_utils_src} ${aura_utils_h} ${platform_src})
+target_compile_features(aura_utils PUBLIC cxx_std_17)
+
+set(copy_public_includes)
+
+# Assume 'other_headers' contain list of files
+foreach(header ${other_headers})
+  list(APPEND copy_public_includes
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${header}  ${CMAKE_SOURCE_DIR}/include/aura)
+endforeach()
+
+add_custom_target( prebuild
+  COMMENT "Prebuild step: copy public include headers"
+  ${copy_public_includes}
+)
+
+add_dependencies(aura_utils prebuild)

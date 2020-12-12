@@ -1,17 +1,14 @@
-#include <aura-core/build.h>
-#include <cpp-httplib/httplib.h>
+
+#define _WEBSOCKETPP_CPP11_STRICT_ 1
+// #define ASIO_STANDALONE 1
+
+#include <boost/version.hpp>
+#include <websocketpp/config/asio_no_tls_client.hpp>
+#include <websocketpp/client.hpp>
+
+typedef websocketpp::client<websocketpp::config::asio_client> client;
 
 int wmain(int argc, wchar_t const* args)
 {
-  httplib::Server server;
-
-  server.Get("/ping", [](auto const& req, auto& response)
-  {
-    AURA_LOG(L"Got request!!");
-    response.set_content("Hello", "text/plain");
-  });
-  AURA_LOG(L"Started listening on localhost:1234");
-
-  server.listen("localhost", 1234);
-  return 0;
+    return 0;
 }
