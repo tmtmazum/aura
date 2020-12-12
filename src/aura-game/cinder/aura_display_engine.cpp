@@ -2,6 +2,7 @@
 #include <cinder/gl/gl.h>
 #include <cinder/app/RendererGl.h>
 #include <cinder/easing.h>
+#include <aura/session.h>
 
 namespace aura
 {
@@ -149,10 +150,41 @@ private:
 
 };
 
+void aura_display_engine::on_session_notify(action_info const& act_info)
+{
+
+}
+
 
 void aura_display_engine::setup()
 {
     setWindowSize({1024, 800});
+
+    // start loading shaders and textures async
+
+    m_menu.add_item(nullptr, "Local PvP", [&]()
+    {
+        m_session = make_local_pvp_session();
+        m_session->register_notify(0, [this](auto const& act_info)
+        {
+            on_session_notify(act_info);
+        });
+
+        m_session->register_notify(1, [this](auto const& act_info)
+        {
+            on_session_notify(act_info);
+        });
+    });
+
+    m_menu.add_item(nullptr, "Quit To Desktop", [&]()
+    {
+        action_info info{};
+        info.act = action_type::forfeit;
+
+        m_session->notify_action(info);
+        m_session.reset();
+    });
+
     /*
     m_shader.setup();
     m_plain_shader.setup();
@@ -184,6 +216,11 @@ void aura_display_engine::setup()
 void aura_display_engine::draw()
 {
     gl::clear( ci::Color( 0.2f, 0.2f, 0.2f ) );
+
+    if (m_menu.is_open())
+    {
+	m_menu.draw();
+    }
 
     /*
 	m_cam.lookAt({0.0f, -1.0f, eye_z}, {0.0f, 0.0f, 0.0f});

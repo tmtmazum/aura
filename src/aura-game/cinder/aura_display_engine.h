@@ -1,6 +1,7 @@
 #include <cinder/app/App.h>
 #include <cinder/Area.h>
 #include "shader.h"
+#include <aura/session.h>
 
 namespace aura
 {
@@ -28,6 +29,8 @@ public:
     virtual ~visual_info() = default;
 };
 
+class session;
+
 class aura_display_engine
   : public ci::app::App
   , public visual_info
@@ -38,6 +41,7 @@ public:
     void draw() override;
 
     //void mouseDown(ci::app::MouseEvent ev) override;
+    void on_session_notify(action_info const&);
 
 public:
     ci::gl::Texture2dRef request_texture(std::string const& name) override;
@@ -63,7 +67,9 @@ private:
     std::unordered_map<std::string, ci::gl::Texture2dRef> m_textures;
     std::unordered_map<std::string, ci::gl::BatchRef> m_batches;
 
-	//card_draft_intro m_intro;
+    aura_menu m_menu;
+
+    std::unique_ptr<session> m_session;
 
     float eye_z = 15.0f;
 };

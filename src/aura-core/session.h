@@ -1,5 +1,8 @@
 #pragma once
 
+#include <functional>
+#include <cinttypes>
+
 namespace aura
 {
 
@@ -27,10 +30,12 @@ using receiver_t = std::function<void(action_info const& )>;
 class session
 {
 public:
-    void register_notify(int player_id, receiver_t const& r);
+    virtual void register_notify(int player_id, receiver_t const& r) = 0;
 
-    void notify_action(action_info const& );
+    virtual void notify_action(action_info const& ) = 0;
 
 };
+
+std::unique_ptr<session> make_local_pvp_session();
 
 } // namespace aura
