@@ -1,7 +1,8 @@
 #include <cinder/app/App.h>
 #include <cinder/Area.h>
-#include "shader.h"
 #include <aura/session.h>
+#include "shader.h"
+#include "aura_menu.h"
 
 namespace aura
 {

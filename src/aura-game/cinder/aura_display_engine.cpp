@@ -217,9 +217,9 @@ void aura_display_engine::draw()
 {
     gl::clear( ci::Color( 0.2f, 0.2f, 0.2f ) );
 
-    if (m_menu.is_open())
+    if (!m_menu.is_hidden())
     {
-	m_menu.draw();
+        m_menu.draw();
     }
 
     /*

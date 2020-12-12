@@ -3,12 +3,14 @@
 #include <memory>
 #include <functional>
 #include <string>
+#include <memory>
 
 namespace aura
 {
 class aura_menu
 {
     using op_t = std::function<void(void)>;
+
     struct menu_item
     {
         std::string                             m_name;
@@ -20,9 +22,10 @@ class aura_menu
 public:
     std::shared_ptr<menu_item> add_item(std::shared_ptr<menu_item> parent, std::string item_name, op_t op)
     {
-        auto const item = std::make_shared<menu_item>(item_name, op, parent ? parent : m_head, {});
+        auto const item = std::make_shared<menu_item>(
+            menu_item{std::move(item_name), std::move(op), (parent ? parent : m_head), {}});
         auto p = parent ? parent : m_head;
-        p.m_children.emplace_back(item);
+        p->m_children.emplace_back(item);
         return item;
     }
 
@@ -32,7 +35,7 @@ public:
 
     void hide() noexcept { m_hidden = true; }
 
-    void draw() const noexcept;
+    void draw() const noexcept{}
 
 private:
     std::shared_ptr<menu_item> m_head = std::make_shared<menu_item>();
