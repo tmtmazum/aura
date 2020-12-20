@@ -31,6 +31,8 @@ public:
                       ci::gl::Texture2dRef normal_map,
                       std::vector<prim> targets) const noexcept;
 
+    virtual void drawText(std::string const& text, ci::gl::Texture2dRef texture) const noexcept;
+
     virtual ci::gl::GlslProgRef program() const noexcept
     {
         return m_glsl;
@@ -39,6 +41,23 @@ public:
 private:
     ci::gl::GlslProgRef m_glsl = nullptr;
     std::unordered_map<prim, ci::gl::BatchRef> m_batches;
+};
+
+class text_shader
+{
+public:
+    void setup() noexcept;
+
+    void drawText(std::string const& text, ci::Font const& font);
+
+    void set_color(ci::ColorAf const& color) noexcept;
+
+    ci::gl::GlslProgRef program() const noexcept { return m_glsl; }
+
+private:
+    ci::gl::GlslProgRef m_glsl = nullptr;
+    std::unordered_map<std::string, ci::gl::TextureRef> m_cache;
+    ci::gl::BatchRef m_rect;
 };
 
 class plain_shader

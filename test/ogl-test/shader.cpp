@@ -90,6 +90,96 @@ void phong_shader::setup() noexcept
 	m_batches.emplace(prim::rect, gl::Batch::create(ci::geom::Rect(), m_glsl));
 }
 
+void text_shader::setup() noexcept
+{
+	using namespace ci;
+
+    m_glsl = gl::GlslProg::create( gl::GlslProg::Format()
+#if 0
+	.vertex(	CI_GLSL( 330,
+		uniform mat4    ciModelMatrix;
+		uniform mat4	ciViewProjection;
+		uniform mat3    ciNormalMatrix;
+		in vec4			ciPosition;
+		in vec2			ciTexCoord0;
+		in vec3         ciNormal;
+		in vec3		    ciTangent;
+		in vec3         ciBitangent;
+		out vec2	    TexCoord0;
+		out vec3        normal;
+		out vec3        worldCoord;
+		out mat3        TBN;
+		
+		void main( void ) {
+			gl_Position	= ciViewProjection * ciModelMatrix * ciPosition;
+			TexCoord0 = ciTexCoord0;
+			normal = ciNormalMatrix * ciNormal;
+			worldCoord = vec3(ciModelMatrix * ciPosition);
+
+			vec3 T = normalize(vec3(ciModelMatrix * vec4(ciTangent,   0.0)));
+            vec3 B = normalize(vec3(ciModelMatrix * vec4(ciBitangent, 0.0)));
+            vec3 N = normalize(vec3(ciModelMatrix * vec4(ciNormal,    0.0)));
+			TBN = mat3(T, B, N);
+		}
+	 ) )
+#endif
+	.vertex(	CI_GLSL( 330,
+		uniform mat4    ciModelMatrix;
+		uniform mat4	ciViewProjection;
+
+		in vec4			ciPosition;
+		in vec2			ciTexCoord0;
+		out vec2	    TexCoord0;
+		
+		void main( void ) {
+			TexCoord0 = ciTexCoord0;
+			gl_Position	= ciViewProjection * ciModelMatrix * ciPosition;
+		}
+	 ) )
+	.fragment(	CI_GLSL( 330,
+		uniform vec4		uColor;
+		uniform sampler2D   uTex0;
+
+		in vec2				TexCoord0;
+		out vec4			color;
+		
+		void main( void ) {
+			color = uColor * texture(uTex0, TexCoord0);
+		}
+	) ) );
+
+	m_glsl->bind();
+	m_glsl->uniform("uTex0", 0);
+	Rectf r{0.0f, 0.0f, 4.0f, 0.5f};
+	m_rect = gl::Batch::create(ci::geom::Rect(r), m_glsl);
+	set_color({1.0f, 1.0f, 1.0f, 1.0f});
+}
+
+void text_shader::set_color(ci::ColorAf const& color) noexcept
+{
+	m_glsl->uniform("uColor", color);
+}
+
+void text_shader::drawText(std::string const& text, ci::Font const& font)
+{
+	using namespace ci;
+
+	m_glsl->bind();
+
+    ci::gl::Texture2d::Format format{};
+    format.loadTopDown();
+
+	gl::TextureRef texture = gl::Texture::create( renderString( text, font, ColorAf{1.0f, 1.0f, 1.0f, 1.0f}, nullptr ), format );
+
+	gl::ScopedTextureBind bind{texture};
+
+	ci::Rectf r2{0.0f, 0.0f, 0.2f * text.size(), 0.5f};
+	static auto rect = gl::Batch::create(ci::geom::Rect(r2), m_glsl);
+	rect->draw();
+	//gl::draw(texture, ci::Rectf{0.0f, 0.0f, 2.0f, 0.5f});
+    //m_rect->draw();
+}
+
 void phong_shader::set_light_position(ci::vec3 const& pos) noexcept
 {
 	m_glsl->uniform("light0", pos);
@@ -124,6 +214,26 @@ void phong_shader::draw(ci::gl::Texture2dRef texture,
 	if (normal_map)
 		normal_map->unbind(1);
 }
+
+void phong_shader::drawText(std::string const& text, ci::gl::Texture2dRef text2) const noexcept
+{
+	using namespace ci;
+
+	m_glsl->bind();
+
+    ci::gl::Texture2d::Format format{};
+    format.loadTopDown();
+
+	//gl::drawString("foobar");
+	gl::TextureRef texture = gl::Texture::create( renderString( text, Font::getDefault(), ColorAf{1.0f, 1.0f, 1.0f, 1.0f}, nullptr ), format );
+
+    m_glsl->uniform("use_normal_map", false);
+
+	gl::ScopedTextureBind bind{texture};
+
+    m_batches.at(prim::rect)->draw();
+}
+
 
 void plain_shader::setup() noexcept
 {
@@ -176,7 +286,6 @@ void plain_shader::draw(ci::ColorAf const& color,
 	for (auto const& t : targets)
 		m_batches.at(t)->draw();
 }
-
 void plain2d_shader::setup() noexcept
 {
 	using namespace ci;

@@ -235,6 +235,7 @@ private:
 
     phong_shader m_shader;
     plain_shader m_plain_shader;
+    text_shader m_text_shader;
 
 	std::unordered_map<std::string, gl::Texture2dRef> m_textures;
 
@@ -255,6 +256,7 @@ void TestApp3::setup()
     setWindowSize({1024, 800});
     m_shader.setup();
     m_plain_shader.setup();
+    m_text_shader.setup();
 
 	m_cam.lookAt({0.0f, -1.0f, 10.0f}, {0.0f, 0.0f, 0.0f});
     m_ortho.setOrtho(-5.0f, 5.0f, -5.0f, 5.0f, 0.1f, 10.0f);
@@ -356,26 +358,21 @@ void TestApp3::draw()
 
 	gl::setMatrices(m_cam);
 
-	//auto mouse_world = ci::gl::windowToWorldCoord(getMousePos() - getWindowPos());
-	//mouse_world.z = 1.25f;
+	auto mouse_world = ci::gl::windowToWorldCoord(getMousePos() - getWindowPos());
+	mouse_world.z = 1.25f;
 
- //   m_shader.set_light_position(mouse_world);
+    m_shader.set_light_position(mouse_world);
 
- //   m_intro.draw(*this);
+    m_intro.draw(*this);
+    static Font customFont( "Cambria", 72 );
 
-#if defined( CINDER_ANDROID )
-	vec2 offset = vec2( 0, 60 );
-#else
-	vec2 offset = vec2( 0 );
-#endif
-	gl::color( Color::white() );
-	if( mTexture ) {
-		gl::draw(mTexture, vec2(0.0f, 0.0f));
-	}
-	if( mSimpleTexture ) {
-		int windowHeight = std::min( getWindowHeight(), 480 );
-		gl::draw( mSimpleTexture, vec2(0.0f, 0.0f));
-	}
+    m_text_shader.set_color({0.8f, 0.8f, 0.8f, 0.5f});
+    {
+        ci::gl::ScopedModelMatrix mat{};
+        ci::gl::translate({0.0f, 0.0f, 0.5f});
+
+        m_text_shader.drawText("Fooobariooooasd", customFont);
+    }
 }
 
 } // namespace aura
