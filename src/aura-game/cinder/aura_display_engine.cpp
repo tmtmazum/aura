@@ -53,6 +53,7 @@ class card_unit : public visual_object
     }
 };
 
+#if 0
 class card_draft_intro : public visual_object
 {
 public:
@@ -149,18 +150,19 @@ private:
 	gl::BatchRef m_batch;
 
 };
+#endif
 
 void aura_display_engine::on_session_notify(action_info const& act_info)
 {
 
 }
 
-
 void aura_display_engine::setup()
 {
     setWindowSize({1024, 800});
 
     // start loading shaders and textures async
+    m_connection.connect();
 
     m_menu.add_item(nullptr, "Local PvP", [&]()
     {
@@ -176,6 +178,11 @@ void aura_display_engine::setup()
         });
     });
 
+    m_menu.add_item(nullptr, "Online PvP", [&]()
+    {
+        //m_session = make_online_pvp_session(m_connection);
+    });
+
     m_menu.add_item(nullptr, "Quit To Desktop", [&]()
     {
         action_info info{};
@@ -185,23 +192,14 @@ void aura_display_engine::setup()
         m_session.reset();
     });
 
-    /*
-    m_shader.setup();
-    m_plain_shader.setup();
-
 	m_cam.lookAt({0.0f, -1.0f, 10.0f}, {0.0f, 0.0f, 0.0f});
     m_ortho.setOrtho(-5.0f, 5.0f, -5.0f, 5.0f, 0.1f, 10.0f);
-    ci::gl::Texture2d::Format format{};
-    format.loadTopDown();
 
-    m_batches.emplace("rect", gl::Batch::create(ci::geom::Rect(), get_phong_shader().program()));
+    m_shader.setup();
+    m_plain_shader.setup();
+    m_plain2d_shader.setup();
 
-    auto wp = ci::geom::WirePlane();
-    wp.subdivisions({10.0f, 10.0f});
-    wp.axes({1.0f, 0.0f, 0.0f}, {0.0f, 1.0f, 0.0f});
-    wp.size({10.0f, 10.0f});
-    m_batches.emplace("wire_plane", gl::Batch::create(wp, get_plain_shader().program()));
-
+    /*
 	gl::enableDepthWrite();
 	gl::enableDepthRead();
 	gl::enableAlphaBlending();
@@ -217,15 +215,16 @@ void aura_display_engine::draw()
 {
     gl::clear( ci::Color( 0.2f, 0.2f, 0.2f ) );
 
-    if (!m_menu.is_hidden())
-    {
-        m_menu.draw();
-    }
-
-    /*
 	m_cam.lookAt({0.0f, -1.0f, eye_z}, {0.0f, 0.0f, 0.0f});
 
 	gl::setMatrices(m_cam);
+
+    if (!m_menu.is_hidden())
+    {
+        m_menu.draw(*this);
+    }
+
+    /*
 	//gl::setMatrices(m_ortho);
 
 	auto mouse_world = ci::gl::windowToWorldCoord(getMousePos() - getWindowPos());

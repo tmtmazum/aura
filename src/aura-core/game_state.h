@@ -29,14 +29,17 @@ private:
     std::unique_ptr<deck>                m_deck;
 };
 
+class ruleset;
+
 class game_state
 {
 public:
+    ~game_state();
 private:
-    std::array<player, 2> m_players;
+    std::array<player, 2>       m_players;
+    //std::unique_ptr<ruleset>    m_rules;
 };
 
-class ruleset;
 std::unique_ptr<game_state> start_local_pvp(ruleset const& rules);
 
 };  // namespace aura

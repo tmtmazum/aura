@@ -23,4 +23,5 @@ add_custom_target(copy_aura_core
   ${copy_public_includes}
 )
 
+set_aura_binary_properties(aura_core)
 add_dependencies(aura_utils copy_aura_core)

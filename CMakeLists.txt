@@ -2,6 +2,7 @@ cmake_minimum_required(VERSION 3.15)
 
 project(aura)
 
+
 include(src/common-properties.cmake)
 
 add_compile_definitions($<IF:$<CONFIG:Debug>,AURA_DEBUG=1,AURA_DEBUG=0>)
@@ -18,7 +19,7 @@ add_subdirectory(src/aura-game)
 
 add_subdirectory(external/Cinder)
 
-# add_subdirectory(src/aura-server)
+add_subdirectory(src/aura-server)
 # add_subdirectory(src/aura-client)
 
 add_subdirectory(test/ogl-test)

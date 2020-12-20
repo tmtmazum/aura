@@ -9,5 +9,11 @@ target_include_directories(aura-game PRIVATE ${CINDER_INCLUDE_DIR})
 if (MSVC)
     target_link_options(aura-game PRIVATE "/SUBSYSTEM:WINDOWS")
 endif()
+
+set_aura_binary_properties(aura-game)
+
+#set_property(TARGET aura-game PROPERTY
+#  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
 source_group("cinder" FILES ${aura_cinder_src})
 
